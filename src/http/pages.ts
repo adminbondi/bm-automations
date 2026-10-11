@@ -1,4 +1,5 @@
-import { derivedAudience, derivedDelay, derivedTrigger, type AudienceChoice, type DelayChoice, type TriggerChoice } from "./editor";
+import { LOYALSNAP_LIVE_KEYS } from "../automations/seed";
+import { derivedAudience, derivedDelay, derivedTrigger, RULE_FIELDS, type AudienceChoice, type DelayChoice, type RuleTrigger, type TriggerChoice } from "./editor";
 import { listDelay, listTrigger, smsListPreview } from "../automations/labels";
 import { TEMPLATE_SUBJECTS, templateLabel } from "../automations/subjects";
 import type { Automation, SendLogRow } from "../automations/types";
@@ -27,14 +28,22 @@ export function listPage(automations: Automation[], stats: Map<number, { lastSen
     : `<b>${automations.length - off}</b> of ${automations.length} automations are on. Turn the matching LoyalSnap automation off the same day you switch one on.`;
   const option = (value: string, label: string, current: string) =>
     `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`;
-  const body = rows.map((row) => listRow(row, stats.get(row.id))).join("");
+  const live = rows.filter((row) => LOYALSNAP_LIVE_KEYS.has(row.key));
+  const unused = rows.filter((row) => !LOYALSNAP_LIVE_KEYS.has(row.key));
+  const empty = `<tr><td colspan="8" class="muted">No automations match these filters.</td></tr>`;
+  const liveBody = live.map((row) => listRow(row, stats.get(row.id))).join("");
+  const unusedBody = unused.map((row) => listRow(row, stats.get(row.id))).join("");
+  const unusedBlock = unused.length === 0
+    ? ""
+    : `<details class="unused"><summary>Not in use <span class="muted">${unused.length}</span></summary><div class="table-wrap"><table class="cards"><thead><tr><th>On/off</th><th>Name</th><th>Channel</th><th>Trigger</th><th>Delay</th><th>Template / text</th><th>Last sent</th><th>Sends 7d</th></tr></thead><tbody>${unusedBody}</tbody></table></div></details>`;
   return `<header><div><h1>Automations</h1><p class="muted" style="margin:0">Emails via listmonk · texts via Twilio · times in Sydney</p></div></header>
 <div class="banner">${banner}</div>
 <form class="bar" method="get" action="/automations"><div class="filters">
 <label>Channel<select name="channel" onchange="this.form.submit()">${option("all", `All (${automations.length})`, channel ?? "all")}${option("email", `Email (${emails})`, channel ?? "all")}${option("sms", `Text (${texts})`, channel ?? "all")}</select></label>
 <label>Status<select name="status" onchange="this.form.submit()">${option("all", "All", status ?? "all")}${option("on", "On", status ?? "all")}${option("off", "Off", status ?? "all")}</select></label>
 </div><a class="btn" href="/automations/new">+ New automation</a></form>
-<div class="table-wrap"><table class="cards"><thead><tr><th>On/off</th><th>Name</th><th>Channel</th><th>Trigger</th><th>Delay</th><th>Template / text</th><th>Last sent</th><th>Sends 7d</th></tr></thead><tbody>${body || `<tr><td colspan="8" class="muted">No automations match these filters.</td></tr>`}</tbody></table></div>`;
+<div class="table-wrap"><table class="cards"><thead><tr><th>On/off</th><th>Name</th><th>Channel</th><th>Trigger</th><th>Delay</th><th>Template / text</th><th>Last sent</th><th>Sends 7d</th></tr></thead><tbody>${liveBody || empty}</tbody></table></div>
+${unusedBlock}`;
 }
 
 function listRow(row: Automation, stat: { lastSent: string | null; sends7d: number } | undefined): string {
@@ -100,9 +109,10 @@ export function editPage(automation: Automation | null, settings: PublicSettings
 <div class="counter"><span id="cc"></span><span>"Reply STOP" footer: ${stop} (<a href="/settings">Settings</a>)</span></div>
 <p class="small muted" style="margin-bottom:6px">Phone preview <span class="ex">example</span></p><div class="bubble" id="bub"></div></div></div>
 <div class="card" style="margin:0"><h2>When and who</h2>
-<label>Trigger<select name="trigger">${triggerOptions(trigger)}</select></label><br>
+<label>Trigger<select name="trigger" id="trigger">${triggerOptions(trigger)}</select></label>
+${ruleBox(automation, trigger)}
 <label>Who it's for<select name="audience">${audienceOptions(audience)}</select></label><br>
-<label>Delay<div style="display:flex;gap:8px"><input name="delayDays" type="number" min="0" step="1" value="${days}" style="width:80px"><select name="delay">${delayOptions(delay)}</select></div></label><br>
+<div id="delay-box"${isRule(trigger) ? " hidden" : ""}><label>Delay<div style="display:flex;gap:8px"><input name="delayDays" type="number" min="0" step="1" value="${days}" style="width:80px"><select name="delay">${delayOptions(delay)}</select></div></label></div><br>
 <label>Stop rules (skip if any is true)</label>
 ${check("skipBooking", "Has booked or taken a class", Boolean(automation?.skipRules.skipIfHasBooking))}
 ${check("skipMembership", "Bought a membership", Boolean(automation?.skipRules.skipIfMembership))}
@@ -132,7 +142,12 @@ sync();
 const template=document.getElementById("template");
 function syncSubject(){const line=document.getElementById("subject");if(template&&line)line.textContent=subjects[template.value]||""}
 template?.addEventListener("change",syncSubject);
-syncSubject();`;
+syncSubject();
+const ruleMeta=${JSON.stringify(RULE_FIELDS)};
+const triggerSel=document.getElementById("trigger");
+function syncRule(){const box=document.getElementById("rule-box");const delay=document.getElementById("delay-box");const numLabel=document.getElementById("rule-number-label");const numName=document.getElementById("rule-number-name");const num=document.getElementById("rule-number");const dateLabel=document.getElementById("rule-date-label");const dateName=document.getElementById("rule-date-name");const help=document.getElementById("rule-help");if(!triggerSel||!box||!num||!numLabel||!dateLabel||!help||!numName||!dateName)return;const meta=ruleMeta[triggerSel.value];box.hidden=!meta;if(delay)delay.hidden=Boolean(meta);if(!meta){num.disabled=true;return}const date=meta.input==="date";numLabel.hidden=date;num.disabled=date;dateLabel.hidden=!date;numName.textContent=meta.label;dateName.textContent=meta.label;help.textContent=meta.help}
+triggerSel?.addEventListener("change",syncRule);
+syncRule();`;
 }
 
 export function logPage(rows: LogView[] | null, automations: Automation[], query: URLSearchParams): string {
@@ -238,12 +253,40 @@ function triggerOptions(current: TriggerChoice): string {
     ["sign-in", "Class sign-in"],
     ["booking", "Class booking"],
     ["classpass", "First ClassPass booking"],
-    ["lead", "External lead received"],
+  ];
+  const rules: [TriggerChoice, string][] = [
+    ["since-visit", "Days since last visit"],
+    ["birthday", "On their birthday"],
+    ["birthday-month", "On the 1st of their birthday month"],
+    ["every-nth", "Every Nth visit"],
+    ["credits", "Credits remaining"],
+    ["visit-window", "Visit window"],
+    ["lead", "External lead"],
   ];
   const head = options[0];
   const rest = options.slice(1);
   const opt = ([value, label]: [string, string]) => `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`;
-  return `${opt(head)}<optgroup label="Mindbody event">${rest.map(opt).join("")}</optgroup>`;
+  return `${opt(head)}<optgroup label="Mindbody event">${rest.map(opt).join("")}</optgroup><optgroup label="Rule">${rules.map(opt).join("")}</optgroup>`;
+}
+
+function ruleBox(automation: Automation | null, trigger: TriggerChoice): string {
+  const active = isRule(trigger) ? RULE_FIELDS[trigger] : null;
+  const date = active?.input === "date";
+  const value = ruleNumberValue(automation, trigger);
+  return `<div id="rule-box"${active ? "" : " hidden"}><label id="rule-number-label"${date ? " hidden" : ""}><span id="rule-number-name">${escapeHtml(active && !date ? active.label : "Days")}</span><input id="rule-number" name="ruleNumber" type="number" min="0" step="1" value="${escapeHtml(value)}" style="width:88px"${date || !active ? " disabled" : ""}></label><label id="rule-date-label"${date ? "" : " hidden"}><span id="rule-date-name">${escapeHtml(active && date ? active.label : "Date")}</span><input id="rule-date" type="date"></label><p class="small muted" id="rule-help">${escapeHtml(active?.help ?? "")}</p></div>`;
+}
+
+function ruleNumberValue(automation: Automation | null, trigger: TriggerChoice): string {
+  if (!automation) return trigger === "lead" ? "0" : "";
+  if (trigger === "since-visit" || trigger === "lead") return String(automation.timingOffsetDays ?? 0);
+  if (trigger === "every-nth") return String(automation.skipRules.everyNthVisit ?? "");
+  if (trigger === "credits") return String(automation.filters.exactRemaining ?? "");
+  if (trigger === "visit-window") return String(automation.skipRules.visitWindowDays ?? "");
+  return "";
+}
+
+function isRule(trigger: TriggerChoice): trigger is RuleTrigger {
+  return trigger in RULE_FIELDS;
 }
 
 function audienceOptions(current: AudienceChoice): string {

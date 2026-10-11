@@ -78,8 +78,13 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 .bubble{background:#e9e9eb;border-radius:18px;padding:10px 14px;max-width:290px;font-size:13px;white-space:pre-wrap}
 .kv{display:grid;grid-template-columns:150px 1fr;gap:10px 14px;align-items:center;font-size:14px}.kv input,.kv select{width:100%}
 .secret{display:flex;gap:8px;align-items:center}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px}
+details.unused{margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:12px}
+details.unused summary{cursor:pointer;padding:12px 14px;font-weight:600}
+details.unused summary .muted{font-weight:400;margin-left:6px}
+details.unused .table-wrap{border:0;border-top:1px solid var(--line);border-radius:0}
+#rule-box{margin-top:8px}
 .err{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:10px 14px;margin-bottom:14px}
 a.name{color:var(--ink);font-weight:600}
-@media(max-width:760px){body{padding-left:0}.topm{display:flex;gap:12px;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:6}.side{position:fixed;top:53px;bottom:0;height:auto;transform:translateX(-100%);transition:.2s;box-shadow:0 8px 30px #0002}.rail{height:100%;position:relative;overflow:auto}body.menu .side{transform:none}.wrap{padding:18px 12px 48px}.grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr;gap:4px}
+@media(max-width:760px){body{padding-left:0}.topm{display:flex;gap:12px;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:6}.side{position:fixed;top:53px;bottom:0;height:auto;transform:translateX(-100%);transition:.2s;box-shadow:0 8px 30px #0002}.rail{height:100%;position:relative;overflow:auto}body.menu .side{transform:none}.wrap{padding:18px 12px 48px;max-width:100%}.grid{grid-template-columns:1fr}.grid>*,.card{min-width:0}select,input,textarea{max-width:100%}.kv{grid-template-columns:1fr;gap:4px}
  table.cards thead{display:none}table.cards tr{display:block;border-bottom:1px solid var(--line);padding:8px 4px}table.cards td{display:flex;justify-content:space-between;gap:12px;border:0;padding:3px 8px}
  table.cards td::before{content:attr(data-l);font-size:11px;text-transform:uppercase;color:var(--muted)}td.prev{max-width:none}.hide-m{display:none!important}}`;

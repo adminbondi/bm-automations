@@ -2,7 +2,61 @@ import { CLASS_PASS_TOKENS, INTRO_PASS_TOKENS, TWO_WEEK_TOKENS } from "../automa
 import type { Automation, AutomationFilters } from "../automations/types";
 import { validateAutomation } from "./automation-body";
 
-export type TriggerChoice = "daily" | "client" | "sale" | "contract" | "sign-in" | "booking" | "classpass" | "lead";
+export type TriggerChoice =
+  | "daily"
+  | "client"
+  | "sale"
+  | "contract"
+  | "sign-in"
+  | "booking"
+  | "classpass"
+  | "lead"
+  | "since-visit"
+  | "birthday"
+  | "birthday-month"
+  | "every-nth"
+  | "credits"
+  | "visit-window";
+
+export type RuleTrigger = "since-visit" | "birthday" | "birthday-month" | "every-nth" | "credits" | "visit-window" | "lead";
+
+export const RULE_FIELDS: Record<RuleTrigger, { input: "number" | "date"; label: string; help: string }> = {
+  "since-visit": {
+    input: "number",
+    label: "Days since last visit",
+    help: "Sends this many days after the last signed-in visit.",
+  },
+  birthday: {
+    input: "date",
+    label: "Birthday",
+    help: "Sends on each client's birthday from Mindbody. 29 Feb uses 28 Feb in other years.",
+  },
+  "birthday-month": {
+    input: "date",
+    label: "Birthday month",
+    help: "Sends on the 1st of the client's birthday month.",
+  },
+  "every-nth": {
+    input: "number",
+    label: "Every Nth visit",
+    help: "Sends when the signed-in visit count is a multiple of this number.",
+  },
+  credits: {
+    input: "number",
+    label: "Credits remaining",
+    help: "Sends when the current pass has this many credits left.",
+  },
+  "visit-window": {
+    input: "number",
+    label: "Visit window (days)",
+    help: "Counts signed-in visits whose start date is inside this many days.",
+  },
+  lead: {
+    input: "number",
+    label: "Days after the lead",
+    help: "0 sends as soon as the lead arrives. A larger number waits that many days.",
+  },
+};
 export type AudienceChoice = "intro" | "two-week" | "leads" | "members" | "classpass" | "all";
 export type DelayChoice =
   | "after-purchase"
@@ -28,6 +82,7 @@ export type EditorInput = {
   skipMembership: boolean;
   skipSent: boolean;
   skipUnsubscribed: boolean;
+  ruleNumber?: string;
 };
 
 const INTRO_KEY = tokenKey(INTRO_PASS_TOKENS);
@@ -36,8 +91,14 @@ const CLASS_KEY = tokenKey(CLASS_PASS_TOKENS);
 
 export function derivedTrigger(automation: Automation): TriggerChoice {
   const events = automation.triggerEvents;
+  if (automation.timingKind === "days_since_last_visit") return "since-visit";
+  if (automation.timingKind === "birthday_day") return "birthday";
+  if (automation.timingKind === "birthday_month_start") return "birthday-month";
+  if (automation.skipRules.everyNthVisit != null) return "every-nth";
+  if (automation.filters.exactRemaining != null) return "credits";
+  if (automation.skipRules.visitWindowDays != null) return "visit-window";
   if (events.includes("client.created") && events.includes("classRosterBooking.created")) return "classpass";
-  if (events.includes("lead.created")) return "lead";
+  if (events.includes("lead.created") || automation.scheduleOnEvents.includes("lead.created")) return "lead";
   if (events.includes("cron")) return "daily";
   if (events.includes("classRosterBookingStatus.updated")) return "sign-in";
   if (events.includes("classRosterBooking.created")) return "booking";
@@ -121,6 +182,12 @@ export function applyEditor(current: Automation, input: EditorInput, enabled: bo
     skipIfUnsubscribed: input.skipUnsubscribed,
   };
   if (derivedAudience(current) !== input.audience) applyAudience(next, input.audience);
+  if (isRuleTrigger(input.trigger)) {
+    const failed = applyRule(next, input.trigger, input.ruleNumber ?? "");
+    if (failed) return failed;
+    return validateAutomation(next);
+  }
+  if (isRuleTrigger(derivedTrigger(current))) clearRuleExtras(next);
   const days = Number(input.delayDays);
   const offsetChanged = input.delay !== "immediate" && current.timingOffsetDays !== days;
   if (input.delay === "immediate") {
@@ -152,7 +219,78 @@ export function editorInput(form: FormData): EditorInput {
     skipMembership: form.get("skipMembership") === "on",
     skipSent: form.get("skipSent") === "on",
     skipUnsubscribed: form.get("skipUnsubscribed") === "on",
+    ruleNumber: String(form.get("ruleNumber") ?? ""),
   };
+}
+
+function isRuleTrigger(trigger: string): trigger is RuleTrigger {
+  return trigger in RULE_FIELDS;
+}
+
+function applyRule(automation: Automation, trigger: RuleTrigger, raw: string): string | null {
+  const field = RULE_FIELDS[trigger];
+  const parsed = Number(raw);
+  const number = raw.trim() === "" && trigger === "lead" ? 0 : parsed;
+  if (field.input === "number" && (!Number.isInteger(number) || number < 0)) return "invalid_offset";
+  if ((trigger === "every-nth" || trigger === "visit-window") && number < 1) return "invalid_offset";
+  clearRuleExtras(automation, trigger);
+  if (trigger === "since-visit") {
+    automation.triggerEvents = ["cron"];
+    automation.scheduleOnEvents = ["classRosterBookingStatus.updated"];
+    automation.timingKind = "days_since_last_visit";
+    automation.timingOffsetDays = number;
+    return null;
+  }
+  if (trigger === "birthday" || trigger === "birthday-month") {
+    automation.triggerEvents = ["cron"];
+    if (automation.scheduleOnEvents.length === 0) automation.scheduleOnEvents = ["client.created"];
+    automation.timingKind = trigger === "birthday" ? "birthday_day" : "birthday_month_start";
+    automation.timingOffsetDays = 0;
+    automation.skipRules.dedupeScope = automation.skipRules.dedupeScope ?? "calendar_year";
+    automation.skipRules.repeat = automation.skipRules.repeat ?? "yearly";
+    return null;
+  }
+  if (trigger === "lead") {
+    if (number === 0) {
+      automation.triggerEvents = ["lead.created"];
+      automation.scheduleOnEvents = [];
+      automation.timingKind = "immediate";
+      automation.timingOffsetDays = null;
+    } else {
+      automation.triggerEvents = ["cron"];
+      automation.scheduleOnEvents = ["lead.created"];
+      automation.timingKind = "delay_days";
+      automation.timingOffsetDays = number;
+    }
+    return null;
+  }
+  automation.triggerEvents = ["classRosterBookingStatus.updated"];
+  automation.scheduleOnEvents = [];
+  automation.timingKind = "immediate";
+  automation.timingOffsetDays = null;
+  automation.filters.signedInStatus = automation.filters.signedInStatus ?? "SignedIn";
+  if (trigger === "every-nth") {
+    automation.skipRules.everyNthVisit = number;
+    automation.skipRules.dedupeScope = automation.skipRules.dedupeScope ?? "visit_milestone";
+  } else if (trigger === "credits") {
+    automation.filters.exactRemaining = number;
+  } else {
+    automation.skipRules.visitWindowDays = number;
+    if (automation.skipRules.minVisitsInWindow == null) automation.skipRules.minVisitsInWindow = 1;
+  }
+  return null;
+}
+
+function clearRuleExtras(automation: Automation, keep?: RuleTrigger): void {
+  if (keep !== "every-nth") delete automation.skipRules.everyNthVisit;
+  if (keep !== "credits") delete automation.filters.exactRemaining;
+  delete automation.filters.minRemaining;
+  delete automation.filters.maxRemaining;
+  if (keep !== "visit-window") {
+    delete automation.skipRules.visitWindowDays;
+    delete automation.skipRules.minVisitsInWindow;
+    delete automation.skipRules.maxVisitsInWindow;
+  }
 }
 
 function applyTrigger(automation: Automation, trigger: string): void {

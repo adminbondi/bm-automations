@@ -342,6 +342,8 @@ export const SEED_AUTOMATIONS: Automation[] = [
   }),
 ];
 
+export const LOYALSNAP_LIVE_KEYS = new Set(SEED_AUTOMATIONS.map((automation) => automation.key));
+
 SEED_AUTOMATIONS.push(...COVERAGE_AUTOMATIONS);
 
 export function findSeed(key: string): Automation {

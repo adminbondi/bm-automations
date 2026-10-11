@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createSessionToken } from "../src/auth";
 import { applyEditor, derivedAudience, derivedDelay, derivedTrigger } from "../src/http/editor";
 import { createApp } from "../src/index";
-import { findSeed, SEED_AUTOMATIONS, SMS_DAY_7 } from "../src/automations/seed";
+import { findSeed, LOYALSNAP_LIVE_KEYS, SEED_AUTOMATIONS, SMS_DAY_7 } from "../src/automations/seed";
 import { TEMPLATE_SUBJECTS } from "../src/automations/subjects";
 import { withReplyStop } from "../src/sms";
 import { asD1, openSqlite, testEnv } from "./helpers";
@@ -99,5 +99,125 @@ describe("admin pages", () => {
     expect(json.automation.enabled).toBe(false);
     expect(json.automation.skipRules.skipIfHasBooking).toBe(true);
     expect(json.automation.filters.packageNameIncludes).toContain("intro pass");
+  });
+
+  it("lists the 13 LoyalSnap automations above a collapsed Not in use group", async () => {
+    const sqlite = openSqlite();
+    const env = testEnv(asD1(sqlite));
+    const app = createApp({ now: () => new Date("2026-10-11T00:00:00Z"), fetchImpl: async () => { throw new Error("unexpected"); } });
+    const token = await createSessionToken("session-secret", "owner@balancemoves.com.au");
+    const list = await app.fetch(new Request("https://automations.example/automations", {
+      headers: { Cookie: `bm_automations_session=${token}` },
+    }), env, {} as ExecutionContext);
+    const html = await list.text();
+    expect(LOYALSNAP_LIVE_KEYS.size).toBe(13);
+    expect(html.indexOf("Lead welcome")).toBeGreaterThan(-1);
+    expect(html.indexOf("Lead welcome")).toBeLessThan(html.indexOf("Not in use"));
+    expect(html.indexOf("Not in use")).toBeLessThan(html.indexOf("Lapsed 30 days"));
+    expect(html).toContain("<details class=\"unused\">");
+    expect(html).not.toContain("<details class=\"unused\" open");
+    expect(html).toContain(">58<");
+  });
+
+  it("shows a number or date under the trigger for each new rule", async () => {
+    const sqlite = openSqlite();
+    const env = testEnv(asD1(sqlite));
+    const app = createApp({ now: () => new Date("2026-10-11T00:00:00Z"), fetchImpl: async () => { throw new Error("unexpected"); } });
+    const token = await createSessionToken("session-secret", "owner@balancemoves.com.au");
+    const headers = { Cookie: `bm_automations_session=${token}` };
+    const page = async (id: number) => {
+      const response = await app.fetch(new Request(`https://automations.example/automations/${id}`, { headers }), env, {} as ExecutionContext);
+      return response.text();
+    };
+    const since = await page(43);
+    expect(since).toContain("Days since last visit");
+    expect(since).toContain("value=\"30\"");
+    expect(since).not.toContain("id=\"rule-box\" hidden");
+    expect(since).toContain("id=\"delay-box\" hidden");
+    const birthday = await page(70);
+    expect(birthday).toContain("On their birthday");
+    expect(birthday).toContain("id=\"rule-date\"");
+    expect(birthday).toContain("29 Feb");
+    const nth = await page(33);
+    expect(nth).toContain("Every Nth visit");
+    expect(nth).toContain("value=\"35\"");
+    const credits = await page(59);
+    expect(credits).toContain("Credits remaining");
+    expect(credits).toContain("value=\"2\"");
+    const window = await page(66);
+    expect(window).toContain("Visit window");
+    expect(window).toContain("value=\"14\"");
+    const lead = await page(24);
+    expect(lead).toContain("External lead");
+    expect(lead).toContain("value=\"2\"");
+    const classic = await page(10);
+    expect(classic).toContain("id=\"rule-box\" hidden");
+    expect(classic).toContain("id=\"delay-box\"");
+    expect(classic).not.toContain("id=\"delay-box\" hidden");
+  });
+
+  it("saves the new trigger rules without turning the automation on", () => {
+    const base = (current: ReturnType<typeof findSeed>, trigger: string, ruleNumber: string) => applyEditor(current, {
+      name: current.name,
+      channel: current.channel,
+      templateId: String(current.templateId ?? ""),
+      messageText: current.messageText ?? "",
+      trigger,
+      audience: derivedAudience(current),
+      delay: derivedDelay(current),
+      delayDays: String(current.timingOffsetDays ?? ""),
+      skipBooking: Boolean(current.skipRules.skipIfHasBooking),
+      skipMembership: Boolean(current.skipRules.skipIfMembership),
+      skipSent: current.skipRules.skipIfAlreadySent !== false,
+      skipUnsubscribed: Boolean(current.skipRules.skipIfUnsubscribed),
+      ruleNumber,
+    }, false);
+
+    const lapsed = base(findSeed("lapsed-30-days"), "since-visit", "45");
+    expect(typeof lapsed).not.toBe("string");
+    if (typeof lapsed === "string") return;
+    expect(lapsed.enabled).toBe(false);
+    expect(lapsed.timingKind).toBe("days_since_last_visit");
+    expect(lapsed.timingOffsetDays).toBe(45);
+    expect(lapsed.filters.clientActivity).toBe("inactive");
+
+    const birthday = base(findSeed("birthday-day-text"), "birthday", "");
+    expect(typeof birthday).not.toBe("string");
+    if (typeof birthday === "string") return;
+    expect(birthday.timingKind).toBe("birthday_day");
+    expect(birthday.skipRules.repeat).toBe("yearly");
+
+    const nth = base(findSeed("member-referral-every-35"), "every-nth", "35");
+    expect(typeof nth).not.toBe("string");
+    if (typeof nth === "string") return;
+    expect(nth.skipRules.everyNthVisit).toBe(35);
+    expect(nth.skipRules.dedupeScope).toBe("visit_milestone");
+
+    const credits = base(findSeed("pack-two-remaining"), "credits", "2");
+    expect(typeof credits).not.toBe("string");
+    if (typeof credits === "string") return;
+    expect(credits.filters.exactRemaining).toBe(2);
+    expect(credits.timingKind).toBe("immediate");
+
+    const windowed = base(findSeed("classpass-two-in-two-weeks"), "visit-window", "14");
+    expect(typeof windowed).not.toBe("string");
+    if (typeof windowed === "string") return;
+    expect(windowed.skipRules.visitWindowDays).toBe(14);
+    expect(windowed.skipRules.minVisitsInWindow).toBe(2);
+
+    const lead = base(findSeed("external-day-2"), "lead", "2");
+    expect(typeof lead).not.toBe("string");
+    if (typeof lead === "string") return;
+    expect(lead.timingKind).toBe("delay_days");
+    expect(lead.timingOffsetDays).toBe(2);
+    expect(lead.scheduleOnEvents).toEqual(["lead.created"]);
+
+    const now = base(findSeed("external-immediate"), "lead", "0");
+    expect(typeof now).not.toBe("string");
+    if (typeof now === "string") return;
+    expect(now.timingKind).toBe("immediate");
+    expect(now.triggerEvents).toEqual(["lead.created"]);
+
+    expect(base(findSeed("member-referral-every-35"), "every-nth", "0")).toBe("invalid_offset");
   });
 });

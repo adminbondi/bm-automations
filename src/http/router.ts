@@ -110,7 +110,7 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
       return Response.json({ sendLog: rows });
     }
     if (url.pathname === "/admin/settings" && request.method === "GET") {
-      return Response.json(await readPublicSettings(loaded.repo, loaded.config));
+      return Response.json(await readPublicSettings(loaded.repo, loaded.config, loaded.now));
     }
     if (url.pathname === "/admin/settings" && request.method === "PATCH") {
       const body = (await readJson(request)) as SettingsPatch;

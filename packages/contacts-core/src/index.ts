@@ -7,6 +7,6 @@ export { CONTACT_FIELDS, STUDIO_ADDRESS, STUDIO_PHONE_DISPLAY, STUDIO_PHONE_E164
 export type { ContactField } from "./fields";
 export { ListmonkClient } from "./listmonk";
 export type { ListmonkConnection, Subscriber } from "./listmonk";
-export { MindbodyClient } from "./mindbody";
+export { CLIENT_ID_BATCH, MindbodyClient } from "./mindbody";
 export type { ClientProfile, ClientSnapshot, MindbodyAuth, MindbodyContract, MindbodyService, MindbodyVisit } from "./mindbody";
 export { normalizePhone } from "./phone";

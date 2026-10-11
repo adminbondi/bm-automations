@@ -52,11 +52,10 @@ export const LANES: SegmentRow[] = [
   lane("PACKS - LOW CREDITS", "current service with at most 4 credits left", "The lane script does not give a number. This uses the same line as the dynamic list 'less than 5 credits': maxRemaining 4.", { maxRemaining: 4 }),
   lane("PACKS & UPFRONTS EXPIRING", "current service expiring within 30 days", "The lane does not give a day count. 30 days matches the dynamic 'expiring next 30 days' list.", { expiringWithinDays: 30 }),
   lane(
-    "RED FLAG - LOW MEMBER USAGE: ACTIVE MEMBERS",
-    "active member, days since last visit",
-    "The script says 'some time' and does not give a number. daysSinceLastVisitMin is supported by matchSegment. Leave the lane unmatched until owners set the threshold.",
-    null,
-    "gap",
+    "RED FLAG - UNDER 3 CREDITS",
+    "current pack with fewer than 3 credits remaining",
+    "Thiago set this as credits, not days since the last visit. matchSegment maxRemaining 2 (remaining 0, 1, or 2). A booking or visit webhook that includes clientPassSessionsRemaining answers it, so the check does not call Mindbody. The matching D1 row stays off and has no template.",
+    { maxRemaining: 2 },
   ),
   lane("ORANGE FLAG - LOW MEMBER USAGE: ACTIVE MEMBERS", "active member, 0 signed-in visits in the last 7 days", "The call script says they have not been seen as often in the last 7 days. visitsInWindow 7 days max 0, hasContract.", { hasContract: true, active: true, visitsInWindow: { days: 7, max: 0 } }),
 ];

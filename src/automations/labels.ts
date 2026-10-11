@@ -14,6 +14,7 @@ const LIST: Record<string, { trigger: string; delay: string }> = {
   "trial-google-review-text": { trigger: "3rd sign-in on Intro Offer", delay: "After visit 3" },
   "trial-expiring-1-day-text": { trigger: "Daily 9am check: pass expiry, ≥1 visit", delay: "Expiry − 1 day" },
   "trial-followup-10-day": { trigger: "Daily 9am check: 10 days after 2-week trial expired", delay: "Expiry + 10 days" },
+  "red-flag-under-3-credits": { trigger: "Booking or visit, under 3 credits", delay: "Immediately" },
 };
 
 export function listTrigger(automation: Automation): string {

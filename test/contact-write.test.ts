@@ -120,6 +120,10 @@ async function sendSale(options: { subscriber?: boolean; extra?: Record<string, 
       clientFirstName: "Ada",
       clientLastName: "Lovelace",
       items: [{ name: "2 Week Intro Pass" }],
+      clientPassSessionsRemaining: 2,
+      clientPassExpirationDateTime: "2026-10-14T00:00:00Z",
+      clientsNumberOfVisitsAtSite: 1,
+      lastVisitDateTime: "2026-10-04T00:00:00Z",
     },
   });
   try {

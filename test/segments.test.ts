@@ -14,7 +14,7 @@ function facts(partial: Partial<SegmentFacts> = {}): SegmentFacts {
 }
 
 describe("saved segments", () => {
-  it("matches each covered lane filter and refuses the red-flag gap", () => {
+  it("matches each covered lane, including red flag under 3 credits", () => {
     const intro = emptySnapshot({
       services: [{ name: "2 Week Intro Pass", expirationSydney: "2026-10-11", current: true, remaining: 2 }],
       visits: [visit({ serviceName: "2 Week Intro Pass", startSydney: "2026-10-10" })],
@@ -37,7 +37,18 @@ describe("saved segments", () => {
       if (lane.status === "gap") expect(lane.filter).toBeNull();
       else expect(lane.filter).toBeTruthy();
     }
-    expect(LANES.find((lane) => lane.name.startsWith("RED FLAG"))?.status).toBe("gap");
+    const red = LANES.find((lane) => lane.name.startsWith("RED FLAG"));
+    expect(red).toMatchObject({
+      name: "RED FLAG - UNDER 3 CREDITS",
+      status: "covered",
+      filter: { maxRemaining: 2 },
+    });
+    const pack = (remaining: number) => facts({
+      snapshot: emptySnapshot({ services: [{ name: "10 Pack", expirationSydney: "2026-12-01", current: true, remaining }] }),
+    });
+    expect(matchSegment(red?.filter ?? {}, pack(0))).toBe(true);
+    expect(matchSegment(red?.filter ?? {}, pack(2))).toBe(true);
+    expect(matchSegment(red?.filter ?? {}, pack(3))).toBe(false);
   });
 
   it("covers dynamic list windows, including a range of expiry days", () => {

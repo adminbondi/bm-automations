@@ -255,4 +255,31 @@ describe("MindbodyClient", () => {
     expect(contact.smsOptOut).toBe(false);
     expect(contact.attribs.phone).toBe("+61412345678");
   });
+
+  it("loads up to 200 clients in one call and reuses a cached staff token", async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith("/usertoken/issue")) return json({ AccessToken: "tok" });
+      expect(url).toContain("request.clientIDs=100,200");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("tok");
+      return json({
+        Clients: [
+          { Id: "100", FirstName: "Ada", Email: "a@example.com" },
+          { Id: 200, FirstName: "Bea", Email: "b@example.com" },
+        ],
+      });
+    };
+    const auth = { apiKey: "key", siteId: "9853", staffUsername: "staff", staffPassword: "pw" };
+    const client = new MindbodyClient(auth, fetchImpl, () => new Date("2026-10-11T00:00:00Z"));
+    const rows = await client.profiles(["100", "200"]);
+    expect(rows.map((row) => row.clientId)).toEqual(["100", "200"]);
+    expect(rows[0]?.profile.firstName).toBe("Ada");
+    expect(client.issuedToken()).toBe("tok");
+    const cached = new MindbodyClient(auth, fetchImpl, () => new Date("2026-10-11T00:00:00Z"), "tok");
+    await cached.profiles(["100", "200"]);
+    expect(urls.filter((url) => url.endsWith("/usertoken/issue"))).toHaveLength(1);
+    expect(cached.issuedToken()).toBeNull();
+  });
 });

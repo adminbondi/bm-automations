@@ -436,6 +436,95 @@ export class Repo {
   async deleteSetting(key: string): Promise<void> {
     await this.db.prepare(`DELETE FROM settings WHERE key = ?`).bind(key).run();
   }
+
+  async getClientCache(clientId: string, resource: string): Promise<{ body: string; expiresAt: string } | null> {
+    const row = await this.db
+      .prepare(`SELECT payload_json, expires_at FROM client_resource_cache WHERE client_id = ? AND resource = ?`)
+      .bind(clientId, resource)
+      .first<{ payload_json: string; expires_at: string }>();
+    if (!row) return null;
+    return { body: row.payload_json, expiresAt: row.expires_at };
+  }
+
+  async putClientCache(clientId: string, resource: string, body: string, fetchedAt: string, expiresAt: string): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT INTO client_resource_cache (client_id, resource, payload_json, fetched_at, expires_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(client_id, resource) DO UPDATE SET
+           payload_json = excluded.payload_json,
+           fetched_at = excluded.fetched_at,
+           expires_at = excluded.expires_at`,
+      )
+      .bind(clientId, resource, body, fetchedAt, expiresAt)
+      .run();
+  }
+
+  async mindbodyUsage(month: string): Promise<{ caller: string; count: number; alerted: boolean }[]> {
+    const rows = await this.db
+      .prepare(`SELECT caller, count, alerted FROM mindbody_call_counts WHERE month = ? ORDER BY caller`)
+      .bind(month)
+      .all<{ caller: string; count: number; alerted: number }>();
+    return rows.map((row) => ({ caller: row.caller, count: row.count, alerted: row.alerted === 1 }));
+  }
+
+  async addMindbodyCalls(
+    caller: string,
+    month: string,
+    amount: number,
+    alertAt: number,
+  ): Promise<{ count: number; total: number; crossedAlert: boolean }> {
+    const at = this.now();
+    await this.db
+      .prepare(
+        `INSERT INTO mindbody_call_counts (caller, month, count, alerted, updated_at)
+         VALUES (?, ?, ?, 0, ?)
+         ON CONFLICT(caller, month) DO UPDATE SET
+           count = mindbody_call_counts.count + excluded.count,
+           updated_at = excluded.updated_at`,
+      )
+      .bind(caller, month, amount, at)
+      .run();
+    const rows = await this.mindbodyUsage(month);
+    const mine = rows.find((row) => row.caller === caller);
+    const total = rows.reduce((sum, row) => sum + row.count, 0);
+    const already = rows.some((row) => row.alerted);
+    if (total >= alertAt && !already) {
+      await this.db
+        .prepare(`UPDATE mindbody_call_counts SET alerted = 1, updated_at = ? WHERE caller = ? AND month = ?`)
+        .bind(at, caller, month)
+        .run();
+      return { count: mine?.count ?? amount, total, crossedAlert: true };
+    }
+    return { count: mine?.count ?? amount, total, crossedAlert: false };
+  }
+
+  async getMindbodyToken(caller: string): Promise<{ token: string; expiresAt: string } | null> {
+    const row = await this.db
+      .prepare(`SELECT token, expires_at FROM mindbody_staff_token WHERE caller = ?`)
+      .bind(caller)
+      .first<{ token: string; expires_at: string }>();
+    if (!row) return null;
+    return { token: row.token, expiresAt: row.expires_at };
+  }
+
+  async putMindbodyToken(caller: string, token: string, expiresAt: string): Promise<void> {
+    await this.db
+      .prepare(
+        `INSERT INTO mindbody_staff_token (caller, token, expires_at, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(caller) DO UPDATE SET
+           token = excluded.token,
+           expires_at = excluded.expires_at,
+           updated_at = excluded.updated_at`,
+      )
+      .bind(caller, token, expiresAt, this.now())
+      .run();
+  }
+
+  async clearMindbodyToken(caller: string): Promise<void> {
+    await this.db.prepare(`DELETE FROM mindbody_staff_token WHERE caller = ?`).bind(caller).run();
+  }
 }
 
 type SendLogDbRow = {

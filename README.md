@@ -2,7 +2,7 @@
 
 Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the LoyalSnap automations that were on, and seeds the ones that were off so an owner can recreate them. Rules live in D1. Nothing sends until an owner enables that row. `COVERAGE.md` maps all 71 automations, the 19 dashboard lanes, and the client lists.
 
-Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. Signed-in owners manage the rows at `/automations`, the send log at `/log`, and connections at `/settings`. Tasks links out to the task dashboard.
+Mindbody webhooks and the Sydney morning cron decide a send from the event payload first. They call the Mindbody Public API only when an enabled automation still needs services, contracts, or visits, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. Signed-in owners manage the rows at `/automations`, the send log at `/log`, and connections at `/settings`. Tasks links out to the task dashboard. Settings shows this month's Mindbody call count.
 
 ## Safety
 
@@ -12,6 +12,12 @@ Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, 
 - SMS quiet hours default to 20:00–09:00 Australia/Sydney (end exclusive, so 09:00 is allowed). The default action holds the text and sends after quiet hours. Settings can switch that to skip. The test-text endpoint always requires an allowlisted number, including when dev mode is off.
 - Texts send from the Twilio number unless Settings chooses a sender name. An optional "Reply STOP" footer is off until an owner turns it on.
 - Do not deploy this worker or register Mindbody webhooks until owners turn dev mode off on purpose. Amazon SES for listmonk is still in sandbox.
+
+## Mindbody call budget
+
+The studio shares 5,000 free Mindbody calls a month. At about 440 webhook events a day, a full snapshot on every event (staff token, profile, services, contracts, and one visit page) is 5 × 440 × 30 = 66,000 calls a month.
+
+A typical event now makes 0 calls. Client events already carry the profile and consent (`sendPromotionalEmails`, `sendPromotionalTexts`). Booking and visit events already carry the visit count (`clientsNumberOfVisitsAtSite`), credits remaining (`clientPassSessionsRemaining`), and expiry (`clientPassExpirationDateTime`). Services, contracts, visits, and a profile that the event did not include are fetched only when an enabled automation still needs them, then cached per client for 6 hours. The morning cron looks up profiles in batches of up to 200 client ids. One staff token is cached for 12 hours. Each HTTP call increments `mindbody_call_counts` for caller `bm-automations` (UTC month). The total across callers alerts at 4,000 and, at 5,000, skips optional cache refreshes. With every automation still off, webhook volume at the measured rate is 0 Mindbody calls a month.
 
 ## Coverage
 
@@ -25,7 +31,7 @@ Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.t
 
 ## Merge fields
 
-`MERGE_FIELDS.md` is the one field table for LoyalSnap tokens, listmonk `attribs`, and Chatwoot `custom_attributes`. The field key is the same name in both systems. Dates are `YYYY-MM-DD`. Phones are E.164. On a send this worker reads the mapped values from the Mindbody snapshot already loaded for that client and sends them in `POST /api/tx` `data`. SMS replaces the LoyalSnap token. A missing first name becomes "there" in the text and in `Tx.Data.FirstName`. Studio name, phone, and address still fill from the worker. Offer prices, the agent name, and the purchase URLs are gaps and render as empty.
+`MERGE_FIELDS.md` is the one field table for LoyalSnap tokens, listmonk `attribs`, and Chatwoot `custom_attributes`. The field key is the same name in both systems. Dates are `YYYY-MM-DD`. Phones are E.164. On a send this worker fills merge fields from the webhook payload, then from the cached client record, and sends them in `POST /api/tx` `data`. SMS replaces the LoyalSnap token. A missing first name becomes "there" in the text and in `Tx.Data.FirstName`. Studio name, phone, and address still fill from the worker. Offer prices, the agent name, and the purchase URLs are gaps and render as empty.
 
 `CONTACT_WRITE_MODE` defaults to `shared_sync`. The shared Mindbody contact sync writes Chatwoot and listmonk in parallel, each with its own retry queue. This worker does not run that sync. It reads the listmonk subscriber by email and, if listmonk has no row, skips the email and logs `subscriber_missing`. `self` is for dev and test: a write runs only while `DEV_MODE` is true and the address is on `SEND_ALLOWLIST`. `SYNC_CONTRACT.md` is that spec.
 

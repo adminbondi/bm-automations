@@ -32,7 +32,7 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
   if (url.pathname === "/" && request.method === "GET") return redirect("/automations");
   try {
     const loaded = await loadRuntime(env, deps);
-    const settings = await readPublicSettings(loaded.repo, loaded.config);
+    const settings = await readPublicSettings(loaded.repo, loaded.config, loaded.now);
     if (url.pathname === "/automations" && request.method === "GET") {
       const automations = await loaded.repo.listAutomations();
       const stats = await loaded.repo.sendStats(new Date(loaded.now.getTime() - 7 * 86_400_000).toISOString());

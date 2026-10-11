@@ -222,6 +222,7 @@ export function settingsPage(settings: PublicSettings, error: string | null, not
   return `${flash(error)}${notice ? `<div class="banner">${escapeHtml(noticeText(notice))}</div>` : ""}
 <header><div><h1>Settings</h1><p class="muted" style="margin:0">Emails via listmonk · texts via Twilio · times in Sydney</p></div></header>
 <div class="grid">
+${mindbodyCard(settings)}
 <form class="card" style="margin:0" method="post" action="/settings/listmonk"><div class="bar"><h2>✉ listmonk (email)</h2>${listmonkPill}</div>
 <div class="kv"><span>Address</span><input name="baseUrl" value="${escapeHtml(settings.listmonk.baseUrl)}"><span>API user</span><input name="apiUser" value="${escapeHtml(settings.listmonk.apiUser)}" autocomplete="off"><span>API token</span>${tokenField}</div>
 <p class="small muted">${checked}</p>
@@ -242,6 +243,27 @@ export function settingsPage(settings: PublicSettings, error: string | null, not
 </div>
 <p class="small muted">Tokens are stored encrypted. After saving, this page only shows Connected / Not connected. Use Replace to enter a new one.</p>
 <script>document.getElementById("show-token")?.addEventListener("click",()=>{const el=document.getElementById("token");if(el){el.hidden=false;el.focus()}})</script>`;
+}
+
+function mindbodyCard(settings: PublicSettings): string {
+  const usage = settings.mindbody;
+  const pill = usage.atCap
+    ? `<span class="pill no">● At cap</span>`
+    : usage.alert
+      ? `<span class="pill no">● Alert</span>`
+      : `<span class="pill ok">● Within budget</span>`;
+  const callers = usage.callers.length
+    ? usage.callers.map((row) => `${escapeHtml(row.caller)} ${row.calls.toLocaleString("en-AU")}`).join("<br>")
+    : "No calls recorded";
+  return `<div class="card full" style="margin:0"><div class="bar"><h2>Mindbody API calls</h2>${pill}</div>
+<div class="kv"><span>Month</span><span>${escapeHtml(monthLabel(usage.month))} (UTC)</span><span>Calls used</span><span>${usage.calls.toLocaleString("en-AU")} of ${usage.cap.toLocaleString("en-AU")}</span><span>Alert</span><span>${usage.alertAt.toLocaleString("en-AU")}</span><span>By caller</span><span>${callers}</span></div>
+<p class="small muted">The free tier is 5,000 calls a month, shared. This page counts every system that writes a caller row. Optional cache refreshes stop at 5,000. Client data is reused for 6 hours.</p></div>`;
+}
+
+function monthLabel(month: string): string {
+  const [year, raw] = month.split("-");
+  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${names[Number(raw) - 1] ?? month} ${year ?? ""}`.trim();
 }
 
 function triggerOptions(current: TriggerChoice): string {

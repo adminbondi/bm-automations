@@ -268,6 +268,10 @@ describe("merge field delivery", () => {
         clientFirstName: "Ada",
         clientLastName: "Lovelace",
         items: [{ name: "2 Week Intro Pass" }],
+        clientPassSessionsRemaining: 2,
+        clientPassExpirationDateTime: "2026-10-14T00:00:00Z",
+        clientsNumberOfVisitsAtSite: 1,
+        lastVisitDateTime: "2026-10-04T00:00:00Z",
       },
     });
     const response = await app.fetch(new Request("https://automations.example/webhooks/mindbody", {
@@ -276,6 +280,7 @@ describe("merge field delivery", () => {
       body,
     }), env, {} as ExecutionContext);
     expect(response.status).toBe(200);
+    expect(calls.some((call) => call.url.includes("api.mindbodyonline.com"))).toBe(false);
     expect(calls.some((call) => call.method === "PUT" || call.method === "POST" && call.url.includes("/api/subscribers"))).toBe(false);
     const tx = JSON.parse(calls.find((call) => call.url.includes("/api/tx"))?.body ?? "{}") as { data: Record<string, unknown> };
     expect(tx.data).toMatchObject({

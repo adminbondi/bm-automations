@@ -50,14 +50,27 @@ export type ClientSnapshot = {
   visits: MindbodyVisit[];
 };
 
+export const CLIENT_ID_BATCH = 200;
+
 export class MindbodyClient {
   private token: string | null = null;
+  private fromCache: boolean;
+  private issued = false;
 
   constructor(
     private readonly auth: MindbodyAuth,
     private readonly fetchImpl: typeof fetch,
     private readonly now: () => Date = () => new Date(),
-  ) {}
+    cachedToken: string | null = null,
+  ) {
+    this.token = cachedToken;
+    this.fromCache = Boolean(cachedToken);
+  }
+
+  /** A token issued during this instance, ready to store. A reused cache token returns null. */
+  issuedToken(): string | null {
+    return this.issued ? this.token : null;
+  }
 
   async snapshot(clientId: string): Promise<ClientSnapshot> {
     const token = await this.staffToken();
@@ -75,6 +88,36 @@ export class MindbodyClient {
     const body = await this.get(`/client/clients?request.clientIDs=${encodeURIComponent(clientId)}`, token);
     const clients = Array.isArray(body.Clients) ? body.Clients : [];
     return mapClient((clients[0] ?? {}) as Record<string, unknown>);
+  }
+
+  /** One GET /client/clients for up to 200 ids. */
+  async profiles(clientIds: string[]): Promise<{ clientId: string; profile: ClientProfile }[]> {
+    const ids = clientIds.slice(0, CLIENT_ID_BATCH);
+    if (ids.length === 0) return [];
+    const token = await this.staffToken();
+    const query = ids.map((id) => encodeURIComponent(id)).join(",");
+    const body = await this.get(`/client/clients?request.clientIDs=${query}`, token);
+    const clients = Array.isArray(body.Clients) ? body.Clients : [];
+    const rows: { clientId: string; profile: ClientProfile }[] = [];
+    for (const row of clients) {
+      const client = row as Record<string, unknown>;
+      const clientId = clientIdOf(client);
+      if (!clientId) continue;
+      rows.push({ clientId, profile: profileFrom(client) });
+    }
+    return rows;
+  }
+
+  async clientServices(clientId: string): Promise<MindbodyService[]> {
+    return this.services(clientId, await this.staffToken());
+  }
+
+  async clientContracts(clientId: string): Promise<MindbodyContract[]> {
+    return this.contracts(clientId, await this.staffToken());
+  }
+
+  async clientVisits(clientId: string): Promise<MindbodyVisit[]> {
+    return this.visits(clientId, await this.staffToken());
   }
 
   private async staffToken(): Promise<string> {
@@ -96,39 +139,39 @@ export class MindbodyClient {
     const token = body.AccessToken ?? body.Token;
     if (!token) throw new Error("mindbody_token_missing");
     this.token = token;
+    this.issued = true;
+    this.fromCache = false;
     return token;
   }
 
   private async get(path: string, token: string): Promise<Record<string, unknown>> {
-    const response = await this.fetchImpl(`${API}${path}`, {
+    const response = await this.request(path, token);
+    if (!response.ok && response.status === 401 && this.fromCache) {
+      this.fromCache = false;
+      this.token = null;
+      const next = await this.staffToken();
+      const retry = await this.request(path, next);
+      if (!retry.ok) throw new Error(`mindbody_${retry.status}`);
+      return (await retry.json()) as Record<string, unknown>;
+    }
+    if (!response.ok) throw new Error(`mindbody_${response.status}`);
+    return (await response.json()) as Record<string, unknown>;
+  }
+
+  private request(path: string, token: string): Promise<Response> {
+    return this.fetchImpl(`${API}${path}`, {
       headers: {
         "Api-Key": this.auth.apiKey,
         SiteId: this.auth.siteId,
         Authorization: token,
       },
     });
-    if (!response.ok) throw new Error(`mindbody_${response.status}`);
-    return (await response.json()) as Record<string, unknown>;
   }
 
   private async profile(clientId: string, token: string): Promise<ClientProfile> {
     const body = await this.get(`/client/clients?request.clientIDs=${encodeURIComponent(clientId)}`, token);
     const clients = Array.isArray(body.Clients) ? body.Clients : [];
-    const client = (clients[0] ?? {}) as Record<string, unknown>;
-    const contact = mapClient(client);
-    const liability = client.Liability as { IsReleased?: boolean } | undefined;
-    return {
-      email: contact.email,
-      phone: contact.phone,
-      firstName: contact.firstName,
-      lastName: contact.lastName,
-      createdAt: text(client.CreationDate),
-      waiverSigned: client.LiabilityRelease === true || client.IsLiabilityReleased === true || liability?.IsReleased === true,
-      birthDate: toIsoDate(text(client.BirthDate)),
-      referredBy: text(client.ReferredBy),
-      emailOptOut: contact.emailOptOut,
-      smsOptOut: contact.smsOptOut,
-    };
+    return profileFrom((clients[0] ?? {}) as Record<string, unknown>);
   }
 
   private async services(clientId: string, token: string): Promise<MindbodyService[]> {
@@ -183,6 +226,28 @@ export class MindbodyClient {
     }
     return visits;
   }
+}
+
+function profileFrom(client: Record<string, unknown>): ClientProfile {
+  const contact = mapClient(client);
+  const liability = client.Liability as { IsReleased?: boolean } | undefined;
+  return {
+    email: contact.email,
+    phone: contact.phone,
+    firstName: contact.firstName,
+    lastName: contact.lastName,
+    createdAt: text(client.CreationDate),
+    waiverSigned: client.LiabilityRelease === true || client.IsLiabilityReleased === true || liability?.IsReleased === true,
+    birthDate: toIsoDate(text(client.BirthDate)),
+    referredBy: text(client.ReferredBy),
+    emailOptOut: contact.emailOptOut,
+    smsOptOut: contact.smsOptOut,
+  };
+}
+
+function clientIdOf(client: Record<string, unknown>): string {
+  if (typeof client.Id === "number" && Number.isFinite(client.Id)) return String(client.Id);
+  return text(client.Id) ?? "";
 }
 
 function text(value: unknown): string | null {

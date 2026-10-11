@@ -137,9 +137,12 @@ Migrations in this repo insert with `enabled = 0` and `INSERT OR IGNORE`, so a l
 
 1. Install the Cloudflare app for Cursor Origin: [Cloudflare app](https://cursor.com/codebase/settings/apps/public/cloudflare). Grant it `thiago-yvette-balance-moves/bm-automations` only if the installer can limit repositories.
 2. In the Cloudflare dashboard, open Worker `bm-automations-dev`, then **Settings > Builds > Connect**. Choose this Origin repository, branch `main`, build command `npm run check:dev`, deploy command `npm run deploy:dev`. Leave non-production branch builds off.
-3. The API token on this agent cannot create Workers Builds triggers (`Authentication error` on `/accounts/.../builds/triggers`). Connecting the app is the step that creates the trigger. Cloudflare can generate the build token. Do not commit it.
-4. Thiago sets the secrets in the table above that are not already on the Worker: `npx wrangler secret put <NAME> --env dev`.
-5. Thiago adds test mobiles to `scripts/dev-sms-allowlist.txt` and `SMS_ALLOWLIST` when SMS tests should be possible.
-6. Add the Google redirect URI on the OAuth client before sign-in will succeed.
+3. The API token on this agent cannot create Workers Builds triggers (`Authentication error` on `/accounts/.../builds/triggers`). Connecting the app is the step that creates the trigger. Do not commit the token.
+4. Give that build token **D1 Edit** as well as Workers Scripts Edit. The token Cloudflare generates for a new build does not include D1. This agent's token can deploy a dry run but gets `7403` / `403` on `wrangler d1` query, so `scripts/enforce-dev-off.mjs` fails closed and the Worker is not published. That is the intended block until the build token can read and write `bm-automations-dev`.
+5. Thiago sets the secrets in the table above that are not already on the Worker: `npx wrangler secret put <NAME> --env dev`.
+6. Thiago adds test mobiles to `scripts/dev-sms-allowlist.txt` and `SMS_ALLOWLIST` when SMS tests should be possible.
+7. Add the Google redirect URI on the OAuth client before sign-in will succeed.
 
-Until step 2 is done, a push to `main` does not deploy. The allowlist check and the automations-off script are in the repo and can be run locally with `npm run check:dev` and, when a deploy is intended, `npm run deploy:dev`.
+On 11 October 2026 the dev database already had migrations `0001` through `0004`, 71 automation rows, and `enabled_count` 0. Migrations `0005_mindbody_budget.sql` and `0006_red_flag_credits.sql` were applied to that same database. It now has 72 rows, all with `enabled = 0`. The live Worker still has no cron schedules. The first successful `npm run deploy:dev` attaches `0 22 * * *` and `0 23 * * *`. With every row off, that cron does not send.
+
+Until steps 2 and 4 are done, a push to `main` does not publish the Worker. The allowlist check can be run locally with `npm run check:dev`. `npm run deploy:dev` is the command Workers Builds should run.

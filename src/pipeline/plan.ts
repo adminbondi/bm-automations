@@ -139,6 +139,7 @@ function gatePlan(
     services: facts.services,
     visits: facts.visits,
     unsubscribeUrl: previewUrl,
+    clientId: facts.clientId,
   });
   const renderedMessage = automation.channel === "sms" && automation.messageText
     ? renderMerge(automation.messageText, bag)

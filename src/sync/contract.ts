@@ -1,3 +1,4 @@
+import { CONTACT_ATTRIBUTES } from "@balancemoves/contacts-core";
 import { MERGE_FIELDS, renderFieldTable } from "../merge/fields";
 
 export function renderSyncContract(): string {
@@ -58,7 +59,15 @@ import {
 } from "@balancemoves/contacts-core";
 \`\`\`
 
-\`mapClient\` turns a Mindbody client payload into the shared attribs. \`MindbodyClient.contact\` loads that client and returns the same object. \`ListmonkClient.upsertContact\` writes the listmonk subscriber and sets \`blocklisted\` when \`emailOptOut\` is true. \`ChatwootContacts.upsert\` writes the Chatwoot contact. \`CONTACT_FIELDS\` is the field list below.
+\`mapClient\` turns a Mindbody client payload into the shared attribs. \`MindbodyClient.contact\` loads that client and returns the same object. \`ListmonkClient.upsertContact\` writes the listmonk subscriber and sets \`blocklisted\` when \`emailOptOut\` is true. \`ChatwootContacts.upsert\` writes the Chatwoot contact. \`CONTACT_FIELDS\` is the LoyalSnap merge list below.
+
+## Chatwoot contact attributes
+
+Listmonk \`attribs\` for contact state use the same keys as Chatwoot \`custom_attributes\`. The list is vendored from \`adminbondi/mindbody-chatwoot-sync\` \`shared/contact-attributes.ts\` into \`packages/contacts-core/src/contact-attributes.ts\`. The \`mindbody_\` prefix is dropped. The id key is \`client_id\` (\`mindbody_id\` would collide with Chatwoot's own id). \`sharedContactAttribs\` writes every key below, including \`packs\`, \`pack_credits_total\`, \`reformer_credits\`, \`mat_barre_credits\`, \`breathwork_yoga_credits\`, and the \`intro_*\` keys. Class-pack credits use the same Mindbody product ids as the Chatwoot sync. LoyalSnap tokens such as \`first_name\` and \`pack_name\` stay on the send for the existing templates.
+
+| Key | Display name |
+| --- | --- |
+${CONTACT_ATTRIBUTES.map((field) => `| ${field.attribute_key} | ${field.attribute_display_name} |`).join("\n")}
 
 ## Field list
 

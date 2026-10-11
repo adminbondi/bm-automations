@@ -1,0 +1,59 @@
+name: deploy
+
+# Push to main deploys the dev Worker only. That Worker is bm-automations-dev:
+# the automations engine and the admin screens. Production (bm-automations)
+# deploys only when someone runs this workflow and chooses production.
+# Both stay in DEV_MODE with SEND_ALLOWLIST=bondi@balancemoves.com.au.
+# Seeded automations are enabled=0. ensureSeed does not turn a row on.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: dev or production
+        type: choice
+        options:
+          - dev
+          - production
+        default: dev
+
+jobs:
+  deploy-dev:
+    if: github.event_name == 'push' || github.event.inputs.target == 'dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Deploy bm-automations-dev
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env dev
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Deploy bm-automations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

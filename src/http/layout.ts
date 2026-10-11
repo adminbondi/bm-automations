@@ -48,8 +48,8 @@ const CSS = `:root{color-scheme:light;--ink:#1c1917;--muted:#78716c;--line:#e7e5
 button.plain{background:transparent;color:inherit;border:0;padding:0;border-radius:0}
 header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap}
 html,body{min-height:100%}body{position:relative;min-height:100vh;padding-left:220px}
-.side{position:absolute;top:0;bottom:0;left:0;width:220px;background:#fff;border-right:1px solid var(--line);z-index:5}
-.rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:22px 14px;background:#fff}
+.side{position:fixed;top:0;bottom:0;left:0;width:220px;height:100vh;overflow:auto;background:#fff;border-right:1px solid var(--line);z-index:5}
+.rail{min-height:100%;display:flex;flex-direction:column;padding:22px 14px;background:#fff}
 .brand{font-weight:700;color:var(--accent);padding:0 10px 18px}nav{display:flex;flex-direction:column;gap:2px;flex:1}nav a{display:flex;gap:10px;padding:9px 12px;border-radius:10px;color:var(--ink);text-decoration:none}nav a:hover{background:#f5f5f4}nav a.on{background:#ccfbf1;color:var(--accent);font-weight:600}.foot{border-top:1px solid var(--line);padding-top:14px}.topm{display:none}
 .user{display:flex;align-items:center;gap:10px}.avatar{width:32px;height:32px;border-radius:50%;background:#ccfbf1;color:#0f766e;display:grid;place-items:center;font-weight:600;font-size:13px}
 .bar{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:12px}

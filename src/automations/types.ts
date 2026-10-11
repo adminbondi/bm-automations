@@ -87,6 +87,7 @@ export type ServiceRecord = {
   expirationSydney: string | null;
   current: boolean;
   remaining?: number | null;
+  productId?: number | null;
 };
 
 export type ContractRecord = {

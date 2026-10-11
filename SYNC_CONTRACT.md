@@ -54,7 +54,35 @@ import {
 } from "@balancemoves/contacts-core";
 ```
 
-`mapClient` turns a Mindbody client payload into the shared attribs. `MindbodyClient.contact` loads that client and returns the same object. `ListmonkClient.upsertContact` writes the listmonk subscriber and sets `blocklisted` when `emailOptOut` is true. `ChatwootContacts.upsert` writes the Chatwoot contact. `CONTACT_FIELDS` is the field list below.
+`mapClient` turns a Mindbody client payload into the shared attribs. `MindbodyClient.contact` loads that client and returns the same object. `ListmonkClient.upsertContact` writes the listmonk subscriber and sets `blocklisted` when `emailOptOut` is true. `ChatwootContacts.upsert` writes the Chatwoot contact. `CONTACT_FIELDS` is the LoyalSnap merge list below.
+
+## Chatwoot contact attributes
+
+Listmonk `attribs` for contact state use the same keys as Chatwoot `custom_attributes`. The list is vendored from `adminbondi/mindbody-chatwoot-sync` `shared/contact-attributes.ts` into `packages/contacts-core/src/contact-attributes.ts`. The `mindbody_` prefix is dropped. The id key is `client_id` (`mindbody_id` would collide with Chatwoot's own id). `sharedContactAttribs` writes every key below, including `packs`, `pack_credits_total`, `reformer_credits`, `mat_barre_credits`, `breathwork_yoga_credits`, and the `intro_*` keys. Class-pack credits use the same Mindbody product ids as the Chatwoot sync. LoyalSnap tokens such as `first_name` and `pack_name` stay on the send for the existing templates.
+
+| Key | Display name |
+| --- | --- |
+| client_id | Client ID |
+| active | active |
+| membership_name | membership name |
+| membership_status | membership status |
+| membership_expiry | membership expiry |
+| packs | packs |
+| pack_credits_total | pack credits |
+| reformer_credits | Reformer credits |
+| mat_barre_credits | Mat & Barre credits |
+| breathwork_yoga_credits | Breathwork & Yoga credits |
+| pack_next_expiry | pack next expiry |
+| intro_client | intro client |
+| intro_active | intro active |
+| intro_visits_used | intro visits used |
+| intro_expiry | intro expiry |
+| intro_days_left | Intro days left |
+| intro_classes_attended | Intro classes attended |
+| intro_classes_missed | Intro classes missed |
+| intro_last_visit | Intro last visit |
+| intro_next_class | Intro next class |
+| intro_stage | Intro stage |
 
 ## Field list
 

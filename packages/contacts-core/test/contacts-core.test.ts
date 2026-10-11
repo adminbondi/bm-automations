@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONTACT_ATTRIBUTES,
   CONTACT_FIELDS,
   ChatwootContacts,
   ListmonkClient,
   MindbodyClient,
+  attributesToCopy,
   mapClient,
   normalizePhone,
+  sharedContactAttribs,
   toIsoDate,
 } from "../src/index";
 
@@ -44,6 +47,61 @@ describe("CONTACT_FIELDS", () => {
     expect(CONTACT_FIELDS.find((field) => field.key === "phone")?.type).toContain("E.164");
     expect(CONTACT_FIELDS.find((field) => field.key === "pass_end_date")?.type).toContain("YYYY-MM-DD");
     expect(CONTACT_FIELDS.find((field) => field.key === "email_opt_out")?.optOut).toContain("blocklisted");
+  });
+});
+
+describe("shared contact attributes", () => {
+  it("uses the Chatwoot keys, including packs and intro fields", () => {
+    const keys = CONTACT_ATTRIBUTES.map((field) => field.attribute_key);
+    expect(keys).toContain("client_id");
+    expect(keys).toContain("packs");
+    expect(keys).toContain("pack_credits_total");
+    expect(keys).toContain("reformer_credits");
+    expect(keys).toContain("mat_barre_credits");
+    expect(keys).toContain("breathwork_yoga_credits");
+    expect(keys.filter((key) => key.startsWith("intro_")).length).toBeGreaterThan(0);
+    expect(keys.some((key) => key.startsWith("mindbody_"))).toBe(false);
+    const blank = sharedContactAttribs();
+    expect(Object.keys(blank).sort()).toEqual([...keys].sort());
+    expect(blank.membership_status).toBe("None");
+    const filled = sharedContactAttribs({
+      clientId: "100",
+      active: true,
+      today: "2026-10-11",
+      services: [
+        {
+          name: "REFORMER CLASS - 5 PACK",
+          productId: 507,
+          remaining: 4,
+          current: true,
+          expiration: "2026-12-01",
+          activeDate: "2026-10-01",
+        },
+        {
+          name: "INTRO PASS - 7 DAYS UNLIMITED CLASSES",
+          productId: 486,
+          remaining: 0,
+          current: true,
+          expiration: "2026-10-20",
+        },
+      ],
+    });
+    expect(filled).toMatchObject({
+      client_id: "100",
+      active: "true",
+      packs: "REFORMER CLASS - 5 PACK: 4 left, exp 2026-12-01",
+      pack_credits_total: "4",
+      reformer_credits: "4",
+      mat_barre_credits: "0",
+      breathwork_yoga_credits: "0",
+      pack_next_expiry: "2026-12-01",
+      intro_client: "true",
+      intro_active: "true",
+      intro_expiry: "2026-10-20",
+      intro_days_left: "9",
+    });
+    expect(attributesToCopy({ mindbody_id: "9", client_id: "kept" })).toEqual({});
+    expect(attributesToCopy({ mindbody_packs: "old pack" })).toEqual({ packs: "old pack" });
   });
 });
 

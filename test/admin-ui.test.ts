@@ -114,6 +114,9 @@ describe("admin pages", () => {
     expect(html.indexOf("Lead welcome")).toBeGreaterThan(-1);
     expect(html.indexOf("Lead welcome")).toBeLessThan(html.indexOf("Not in use"));
     expect(html.indexOf("Not in use")).toBeLessThan(html.indexOf("Lapsed 30 days"));
+    expect(html).toContain(".side{position:fixed");
+    expect(html).toContain("height:100vh");
+    expect(html).toContain(">Tasks<");
     expect(html).toContain("<details class=\"unused\">");
     expect(html).not.toContain("<details class=\"unused\" open");
     expect(html).toContain(">59<");

@@ -2,20 +2,29 @@ import { isAdminEmail, readSession } from "../auth";
 import type { RuntimeConfig } from "../env";
 import { addDays, sydneyDate } from "../time";
 import { normalizePhone } from "@balancemoves/contacts-core";
-import { loadRuntime, type AppDeps } from "../pipeline/runtime";
+import { loadRuntime, searchMindbodyClients, takeSnapshot, type AppDeps, type Loaded } from "../pipeline/runtime";
 import { noteListmonkCheck, readPublicSettings, writeSettings } from "../settings/service";
-import { exampleMerge, renderMerge } from "../merge/values";
+import { checkTestRecipient } from "../settings/test-recipients";
 import { withReplyStop } from "../sms";
 import { log } from "../log";
 import { html } from "./google";
 import { signInPage } from "./html";
 import { adminPage } from "./layout";
 import { applyEditor, blankAutomation, editorInput } from "./editor";
-import { editPage, editScript, listPage, logCsv, logPage, presentLog, settingsPage, type LogView } from "./pages";
+import {
+  evaluateTest,
+  sampleFromForm,
+  subjectFromSample,
+  subjectFromSnapshot,
+  type TestSubject,
+} from "../automations/test-panel";
+import { editPage, editScript, emptyTestPanel, listPage, logCsv, logPage, presentLog, settingsPage, type LogView, type TestClientOption, type TestPanelState } from "./pages";
+import type { Automation } from "../automations/types";
 
 const AUTOMATION = /^\/automations\/(\d+)$/;
 const TOGGLE = /^\/automations\/(\d+)\/toggle$/;
 const TEST = /^\/automations\/(\d+)\/test$/;
+const PREVIEW = /^\/automations\/(\d+)\/preview$/;
 
 export async function handleAdminPages(request: Request, env: Env, deps: AppDeps, config: RuntimeConfig, url: URL): Promise<Response | null> {
   if (!isPage(url.pathname, request.method)) return null;
@@ -72,19 +81,24 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
       const back = request.headers.get("Referer") ?? "";
       return redirect(back.includes("/automations/") ? `/automations/${automation.id}` : "/automations");
     }
+    const preview = url.pathname.match(PREVIEW);
+    if (preview && request.method === "POST") {
+      return runAutomationTest(request, deps, loaded, settings, session.email, Number(preview[1]), "preview");
+    }
     const test = url.pathname.match(TEST);
     if (test && request.method === "POST") {
-      return sendTest(request, loaded, session.email, Number(test[1]));
+      return runAutomationTest(request, deps, loaded, settings, session.email, Number(test[1]), "send");
     }
     const one = url.pathname.match(AUTOMATION);
     if (one && request.method === "GET") {
       const automation = await loaded.repo.getAutomation(Number(one[1]));
       if (!automation) return redirect("/automations?error=not_found");
+      const panel = await panelFromQuery(loaded, deps, url.searchParams.get("clientQ") ?? "");
       return html(adminPage({
         title: automation.name,
         email: session.email,
         active: "automations",
-        body: editPage(automation, settings, url.searchParams.get("error"), url.searchParams.get("notice")),
+        body: editPage(automation, settings, url.searchParams.get("error"), url.searchParams.get("notice"), panel),
         script: editScript(settings.appendReplyStop),
       }));
     }
@@ -172,6 +186,11 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
       });
       return redirect("/settings?notice=saved");
     }
+    if (url.pathname === "/settings/test-recipients" && request.method === "POST") {
+      const form = await request.formData();
+      await writeSettings(loaded.repo, loaded.config, { testRecipients: String(form.get("testRecipients") ?? "") });
+      return redirect("/settings?notice=saved");
+    }
     return null;
   } catch (error) {
     const message = error instanceof Error ? error.message : "error";
@@ -224,39 +243,174 @@ async function saveTwilio(form: FormData, loaded: Awaited<ReturnType<typeof load
   });
 }
 
-async function sendTest(
+async function runAutomationTest(
   request: Request,
-  loaded: Awaited<ReturnType<typeof loadRuntime>>,
-  email: string,
+  deps: AppDeps,
+  loaded: Loaded,
+  settings: Awaited<ReturnType<typeof readPublicSettings>>,
+  sessionEmail: string,
   id: number,
+  mode: "preview" | "send",
 ): Promise<Response> {
   const automation = await loaded.repo.getAutomation(id);
   if (!automation) return redirect("/automations?error=not_found");
   const form = await request.formData();
+  const today = sydneyDate(loaded.now);
+  const rawRecipient = String(form.get("recipient") ?? "");
+  const recipient = checkTestRecipient(rawRecipient, automation.channel, settings.testRecipients);
+  if (mode === "send" && !recipient.ok) return redirect(`/automations/${id}?error=${recipient.error}`);
+  const found = await findClients(loaded, deps, String(form.get("clientQ") ?? ""));
+  const panel = panelFromForm(form, found);
+  const subjectResult = await loadSubject(form, loaded, deps, today);
+  if ("error" in subjectResult) {
+    if (mode === "send") return redirect(`/automations/${id}?error=${subjectResult.error}`);
+    return editResponse(automation, settings, sessionEmail, subjectResult.error, panel);
+  }
+  const preview = evaluateTest(automation, subjectResult.subject, today, {
+    studioName: loaded.config.studioName || "Balance Moves",
+    appendReplyStop: loaded.connections.appendReplyStop,
+  });
+  panel.preview = {
+    headline: preview.headline,
+    renderedTitle: preview.renderedTitle,
+    rendered: preview.rendered,
+    recipientNote: recipientNote(recipient, rawRecipient),
+  };
+  if (mode === "preview") return editResponse(automation, settings, sessionEmail, null, panel);
+  if (!recipient.ok) return redirect(`/automations/${id}?error=${recipient.error}`);
   try {
     if (automation.channel === "sms") {
-      const to = normalizePhone(String(form.get("testPhone") ?? ""));
-      if (!to) return redirect(`/automations/${id}?error=invalid_phone`);
-      if (!loaded.config.phoneAllowlist.includes(to)) return redirect(`/automations/${id}?error=not_allowlisted`);
-      if (loaded.withinQuietHours) return redirect(`/automations/${id}?error=quiet_hours`);
-      if (!loaded.twilio.fromAddress()) return redirect(`/automations/${id}?error=twilio_not_connected`);
-      const text = automation.messageText ?? "";
-      const sample = exampleMerge();
-      sample.data.studio = loaded.config.studioName || "Balance Moves";
-      await loaded.twilio.sendSms({
-        to,
-        body: withReplyStop(renderMerge(text, sample), loaded.connections.appendReplyStop),
+      if (!recipient.phone) return redirect(`/automations/${id}?error=invalid_recipient`);
+      if (!loaded.connections.twilioAccountSid || !loaded.connections.twilioAuthToken || !loaded.twilio.fromAddress()) {
+        return redirect(`/automations/${id}?error=twilio_not_connected`);
+      }
+      await loaded.twilio.sendSms({ to: recipient.phone, body: preview.rendered });
+    } else {
+      if (!automation.templateId) return redirect(`/automations/${id}?error=template_missing`);
+      if (!recipient.email) return redirect(`/automations/${id}?error=invalid_recipient`);
+      if (!loaded.connections.listmonkApiToken) return redirect(`/automations/${id}?error=listmonk_not_connected`);
+      await loaded.listmonk.sendTx({
+        email: recipient.email,
+        templateId: automation.templateId,
+        data: preview.data,
       });
-      return redirect(`/automations/${id}?notice=twilio_ok`);
     }
-    if (!loaded.config.emailAllowlist.includes(email)) return redirect(`/automations/${id}?error=not_allowlisted`);
-    if (!automation.templateId || !loaded.connections.listmonkApiToken) return redirect(`/automations/${id}?error=listmonk_not_connected`);
-    await loaded.listmonk.sendTx({ email, templateId: automation.templateId, data: exampleMerge().data });
-    return redirect(`/automations/${id}?notice=email_ok`);
+    await loaded.repo.recordSend({
+      dedupeKey: `test:${automation.id}:${subjectResult.subject.clientId}:${loaded.now.toISOString()}:${crypto.randomUUID()}`,
+      automationId: automation.id,
+      clientId: subjectResult.subject.clientId,
+      channel: automation.channel,
+      templateId: automation.templateId,
+      email: recipient.email,
+      phone: recipient.phone,
+      status: "test",
+      detail: `TEST. ${preview.headline} Client not contacted. Bypassed: automation off, dedupe, quiet hours.`,
+    });
+    return redirect(`/automations/${id}?notice=test_sent`);
   } catch (error) {
     log({ event: "admin_test_failed", message: error instanceof Error ? error.message : "test_failed" });
     return redirect(`/automations/${id}?error=test_failed`);
   }
+}
+
+
+function editResponse(
+  automation: Automation,
+  settings: Awaited<ReturnType<typeof readPublicSettings>>,
+  sessionEmail: string,
+  error: string | null,
+  panel: TestPanelState,
+): Response {
+  return html(adminPage({
+    title: automation.name,
+    email: sessionEmail,
+    active: "automations",
+    body: editPage(automation, settings, error, null, panel),
+    script: editScript(settings.appendReplyStop),
+  }));
+}
+
+async function panelFromQuery(loaded: Loaded, deps: AppDeps, clientQuery: string): Promise<TestPanelState> {
+  const found = await findClients(loaded, deps, clientQuery);
+  const panel = emptyTestPanel();
+  panel.clientQuery = clientQuery;
+  panel.clients = found.clients;
+  panel.searchError = found.searchError;
+  panel.source = found.clients.length > 0 ? "client" : "sample";
+  return panel;
+}
+
+async function findClients(
+  loaded: Loaded,
+  deps: AppDeps,
+  clientQuery: string,
+): Promise<{ clients: TestClientOption[]; searchError: string | null }> {
+  const query = clientQuery.trim();
+  if (query.length === 0) return { clients: [], searchError: null };
+  if (query.length < 2) return { clients: [], searchError: "Type at least 2 characters." };
+  try {
+    const hits = await searchMindbodyClients(loaded, deps, query);
+    return {
+      clients: hits.map((hit) => ({
+        id: hit.id,
+        name: [hit.firstName, hit.lastName].filter(Boolean).join(" ") || `Client ${hit.id}`,
+        email: hit.email,
+        phone: hit.phone,
+      })),
+      searchError: null,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    log({ event: "mindbody_search_failed", message });
+    const searchError = message === "mindbody_staff_credentials_missing"
+      ? "Mindbody is not connected. Enter sample values instead."
+      : "Mindbody search did not respond. Enter sample values instead.";
+    return { clients: [], searchError };
+  }
+}
+
+function panelFromForm(
+  form: FormData,
+  found: { clients: TestClientOption[]; searchError: string | null },
+): TestPanelState {
+  const panel = emptyTestPanel();
+  panel.clientQuery = String(form.get("clientQ") ?? "");
+  panel.clients = found.clients;
+  panel.searchError = found.searchError;
+  panel.source = form.get("source") === "client" ? "client" : "sample";
+  panel.clientId = String(form.get("clientId") ?? "");
+  panel.recipient = String(form.get("recipient") ?? "");
+  panel.sample = sampleFromForm(form);
+  return panel;
+}
+
+async function loadSubject(
+  form: FormData,
+  loaded: Loaded,
+  deps: AppDeps,
+  today: string,
+): Promise<{ subject: TestSubject } | { error: string }> {
+  if (form.get("source") === "client") {
+    const clientId = String(form.get("clientId") ?? "").trim();
+    if (!clientId) return { error: "client_required" };
+    try {
+      const snapshot = await takeSnapshot(loaded, deps, clientId);
+      return { subject: subjectFromSnapshot(clientId, snapshot) };
+    } catch (error) {
+      log({ event: "mindbody_snapshot_failed", message: error instanceof Error ? error.message : "mindbody_search_failed" });
+      return { error: "mindbody_search_failed" };
+    }
+  }
+  return { subject: subjectFromSample(sampleFromForm(form), today) };
+}
+
+function recipientNote(
+  recipient: ReturnType<typeof checkTestRecipient>,
+  raw: string,
+): string | null {
+  if (!raw.trim()) return "Add a recipient before Send test. Preview does not send.";
+  if (!recipient.ok) return "Send test would be refused until this address is on the Test recipients list in Settings.";
+  return "This recipient is on the Test recipients list.";
 }
 
 async function filteredLog(loaded: Awaited<ReturnType<typeof loadRuntime>>, query: URLSearchParams): Promise<LogView[]> {

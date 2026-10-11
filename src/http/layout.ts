@@ -61,7 +61,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}td.prev{max-width:300px;color:var(--muted)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;background:#e7e5e4;font-size:12px;white-space:nowrap}
 .pill.email{background:#ccfbf1;color:#115e59}.pill.text{background:#ede9fe;color:#5b21b6}
-.pill.sent{background:#dcfce7;color:#166534}.pill.skipped{background:#fef3c7;color:#92400e}.pill.failed,.pill.bounced{background:#fee2e2;color:#991b1b}
+.pill.sent{background:#dcfce7;color:#166534}.pill.skipped{background:#fef3c7;color:#92400e}.pill.failed,.pill.bounced{background:#fee2e2;color:#991b1b}.pill.test{background:#ccfbf1;color:#115e59}
 .pill.ok{background:#dcfce7;color:#166534}.pill.no{background:#fee2e2;color:#991b1b}.ex{background:#fef3c7;color:#92400e;font-size:11px;padding:1px 6px;border-radius:6px}
 .banner{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:14px}
 .sw{position:relative;display:inline-block;width:38px;height:22px;border-radius:999px;background:#d6d3d1;vertical-align:middle}.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}

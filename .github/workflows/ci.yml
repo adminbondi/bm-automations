@@ -1,6 +1,6 @@
 # Tests and the dev allowlist check. This workflow does not deploy.
-# A push to main deploys bm-automations-dev through Cloudflare Workers Builds.
-# See docs/dev-deploy.md. Origin does not run this file by itself.
+# A push to main deploys bm-automations-dev from .github/workflows/deploy-dev.yml.
+# See docs/dev-deploy.md.
 name: ci
 
 on:

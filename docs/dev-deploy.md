@@ -2,13 +2,24 @@
 
 A push to `main` publishes the Balance Moves automations Worker to the dev environment. Production resources are not part of this path.
 
-## Why Workers Builds
+## Why GitHub Actions
 
-The git host for this repo is Cursor Origin (`origin.cursor.com`). Cloudflare Workers Builds connects to Origin, and since 22 September 2026 it builds on a push to the configured branch and posts a check run back on the Origin pull request. That is the deploy mechanism.
+`.github/workflows/deploy-dev.yml` deploys on a push to `main`. Wrangler authenticates with the GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Do not commit either value.
 
-GitHub Actions in `.github/workflows/ci.yml` does not run on an Origin-hosted repository. Origin does not execute that file, and Workers Builds is the integration that already speaks Origin. The workflow still runs `npm test`, `npm run typecheck`, and `npm run check:dev` for a runner that understands GitHub Actions. It never deploys.
+The job runs, in order:
 
-Workers Builds is configured in the Cloudflare dashboard, not in `wrangler.jsonc`. The commands below are what that connection must run, so the test gate lives in git even though the trigger is created in the dashboard.
+1. `npm test`
+2. `npm run typecheck`
+3. `npm run check:dev` (the allowlist check)
+4. `node scripts/enforce-dev-off.mjs`
+5. `npx wrangler deploy --env dev`
+6. `node scripts/enforce-dev-off.mjs`
+
+GitHub Actions skips every later step when one fails, so a failed test, typecheck, or allowlist check does not deploy. The automations-off check runs before and after `wrangler deploy --env dev`.
+
+`.github/workflows/ci.yml` runs the same tests, typecheck, and allowlist check on push and pull request. It does not deploy.
+
+`./scripts/deploy.sh dev` is that same sequence for a manual dev deploy. Any other argument exits 1 and does not call Wrangler.
 
 ## One Worker
 
@@ -20,15 +31,18 @@ Admin UI and the automation pipeline therefore ship together as `bm-automations-
 
 ## What a main push runs
 
-Workers Builds, production branch `main`, preview builds left off:
+`.github/workflows/deploy-dev.yml` on branch `main`:
 
-| Setting | Value |
+| Step | Command |
 | --- | --- |
-| Worker | `bm-automations-dev` (tag `5358edd182914047b66f7ddc53c172d9`) |
-| Root directory | repository root |
-| Build command | `npm run check:dev` |
-| Deploy command | `npm run deploy:dev` |
-| Non-production branch builds | off |
+| Tests | `npm test` |
+| Typecheck | `npm run typecheck` |
+| Allowlist | `npm run check:dev` |
+| Automations off | `node scripts/enforce-dev-off.mjs` |
+| Deploy | `npx wrangler deploy --env dev` |
+| Automations off again | `node scripts/enforce-dev-off.mjs` |
+
+The Worker is `bm-automations-dev`. The deploy step is not reached when an earlier step fails.
 
 `npm run deploy:dev` is `./scripts/deploy.sh dev`. In order, that script:
 
@@ -36,13 +50,9 @@ Workers Builds, production branch `main`, preview builds left off:
 2. Runs `node scripts/check-dev-config.mjs`.
 3. Applies D1 migrations to `bm-automations-dev` only, forces every automation `enabled = 0`, and exits if none exist or any remain enabled.
 4. Runs `npx wrangler deploy --env dev`.
-5. Repeats the automations-off check. If any row is enabled, the build fails.
+5. Repeats the automations-off check. If any row is enabled, the script fails.
 
-The build command also runs the allowlist check first. Workers Builds runs the build command, then the deploy command. The deploy script repeats the test suite so a dashboard connection that only sets the deploy command still cannot publish after a failed test.
-
-Leave preview builds off. A preview would publish branch code, and this Worker has no separate preview database.
-
-`./scripts/deploy.sh` without `dev` exits 1. Do not set the deploy command to plain `npx wrangler deploy`. That targets the top-level Worker name `bm-automations`, whose D1 id is still the placeholder `00000000-0000-0000-0000-000000000000`.
+`./scripts/deploy.sh` without `dev` exits 1. Do not run plain `npx wrangler deploy`. That targets the top-level Worker name `bm-automations`, whose D1 id is still the placeholder `00000000-0000-0000-0000-000000000000`.
 
 ## Bindings
 
@@ -75,7 +85,7 @@ These are in `env.dev.vars`. They are not secrets. `wrangler deploy` replaces pl
 | `LISTMONK_SUPPRESSED_LIST_ID` | empty | Suppressed list id | Thiago, when a list is chosen |
 | `SYDNEY_SEND_HOUR` | `9` | Local hour the cron is allowed to send | Already known |
 | `ADMIN_EMAILS` | `admin@balancemoves.com.au` | Google sign-in allowlist. This is the value already on the dev Worker. An empty list locks the admin API. | Already known. Add another owner in `env.dev` and keep `admin@balancemoves.com.au`. |
-| `DEFAULT_FROM_EMAIL` | empty | Falls back to the settings row, then the code default | Thiago, if dev should show a from address before Settings is saved |
+| `DEFAULT_FROM_EMAIL` | `bondi@balancemoves.com.au` | From address on a dev send before Settings is saved. A deploy replaces plain-text vars, so an empty value would clear it. The allowlist check requires this address. | Locked in git |
 | `SMS_QUIET_START` | `20:00` | Sydney quiet hours, end exclusive | Already known |
 | `SMS_QUIET_END` | `09:00` | 09:00 is allowed | Already known |
 | `STUDIO_NAME` | `Balance Moves` | Merge field | Already known |
@@ -115,6 +125,7 @@ Google's redirect URI is `https://bm-automations-dev.plain-bush-daad.workers.dev
 
 - `DEV_MODE` is `true`.
 - `SEND_ALLOWLIST` contains exactly `bondi@balancemoves.com.au` and no other email.
+- `DEFAULT_FROM_EMAIL` is `bondi@balancemoves.com.au`.
 - Phone numbers in `SMS_ALLOWLIST` and `SEND_ALLOWLIST` are the same set as `scripts/dev-sms-allowlist.txt`.
 - The studio number `+61424133544` is on neither list.
 - The D1 binding is `bm-automations-dev` / `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`.
@@ -135,14 +146,12 @@ Migrations in this repo insert with `enabled = 0` and `INSERT OR IGNORE`, so a l
 
 ## Manual steps still required
 
-1. Install the Cloudflare app for Cursor Origin: [Cloudflare app](https://cursor.com/codebase/settings/apps/public/cloudflare). Grant it `thiago-yvette-balance-moves/bm-automations` only if the installer can limit repositories.
-2. In the Cloudflare dashboard, open Worker `bm-automations-dev`, then **Settings > Builds > Connect**. Choose this Origin repository, branch `main`, build command `npm run check:dev`, deploy command `npm run deploy:dev`. Leave non-production branch builds off.
-3. The API token on this agent cannot create Workers Builds triggers (`Authentication error` on `/accounts/.../builds/triggers`). Connecting the app is the step that creates the trigger. Do not commit the token.
-4. Give that build token **D1 Edit** as well as Workers Scripts Edit. The token Cloudflare generates for a new build does not include D1. This agent's token can deploy a dry run but gets `7403` / `403` on `wrangler d1` query, so `scripts/enforce-dev-off.mjs` fails closed and the Worker is not published. That is the intended block until the build token can read and write `bm-automations-dev`.
-5. Thiago sets the secrets in the table above that are not already on the Worker: `npx wrangler secret put <NAME> --env dev`.
-6. Thiago adds test mobiles to `scripts/dev-sms-allowlist.txt` and `SMS_ALLOWLIST` when SMS tests should be possible.
-7. Add the Google redirect URI on the OAuth client before sign-in will succeed.
+1. Add GitHub Actions repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The workflow reads those names and no others. Do not commit the token.
+2. Give that token **Workers Scripts Edit** and **D1 Edit**. `scripts/enforce-dev-off.mjs` applies migrations and writes `enabled = 0` on `bm-automations-dev`. Without D1 Edit that step fails and the workflow does not run `wrangler deploy --env dev`.
+3. Thiago sets the Worker secrets in the table above that are not already on the Worker: `npx wrangler secret put <NAME> --env dev`. Those are Worker secrets, not GitHub Actions secrets.
+4. Thiago adds test mobiles to `scripts/dev-sms-allowlist.txt` and `SMS_ALLOWLIST` when SMS tests should be possible.
+5. Add the Google redirect URI on the OAuth client before sign-in will succeed.
 
-On 11 October 2026 the dev database already had migrations `0001` through `0004`, 71 automation rows, and `enabled_count` 0. Migrations `0005_mindbody_budget.sql` and `0006_red_flag_credits.sql` were applied to that same database. It now has 72 rows, all with `enabled = 0`. The live Worker still has no cron schedules. The first successful `npm run deploy:dev` attaches `0 22 * * *` and `0 23 * * *`. With every row off, that cron does not send.
+On 11 October 2026 the dev database already had migrations `0001` through `0004`, 71 automation rows, and `enabled_count` 0. Migrations `0005_mindbody_budget.sql` and `0006_red_flag_credits.sql` were applied to that same database. It now has 72 rows, all with `enabled = 0`. The live Worker still has no cron schedules. The first successful deploy attaches `0 22 * * *` and `0 23 * * *`. With every row off, that cron does not send.
 
-Until steps 2 and 4 are done, a push to `main` does not publish the Worker. The allowlist check can be run locally with `npm run check:dev`. `npm run deploy:dev` is the command Workers Builds should run.
+Until the Actions secrets are set and the token can edit D1, a push to `main` fails the automations-off step and does not publish the Worker. The allowlist check can be run locally with `npm run check:dev`. `npm run deploy:dev` is the manual command for the same sequence.

@@ -106,7 +106,7 @@ Emails use listmonk templates 5–13. SMS rows store message text and a null tem
 
 Dev deploy is `docs/dev-deploy.md`. `./scripts/deploy.sh dev` runs the test suite, the allowlist check, and `wrangler deploy --env dev`, then fails if any automation is enabled on `bm-automations-dev`. Any other argument is refused. The script does not publish the top-level Worker `bm-automations`.
 
-The dev D1 database already exists: `bm-automations-dev`, id `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`. Do not create another one. A push to `main` should run `npm run deploy:dev` through Cloudflare Workers Builds. `.github/workflows/ci.yml` runs the same tests and the allowlist check, and it does not deploy.
+The dev D1 database already exists: `bm-automations-dev`, id `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`. Do not create another one. A push to `main` runs `.github/workflows/deploy-dev.yml`. That workflow runs the tests, typecheck, and allowlist check first, then `wrangler deploy --env dev` only if they pass, with the automations-off check before and after the deploy. It uses the GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. `.github/workflows/ci.yml` runs the same checks and does not deploy.
 
 `LEAD_WEBHOOK_SECRET` is optional. Without it, `POST /webhooks/lead` returns 401. `ADMIN_EMAILS` on `env.dev` is `admin@balancemoves.com.au`. Google's redirect URI for that Worker is `https://bm-automations-dev.plain-bush-daad.workers.dev/auth/google/callback`.
 

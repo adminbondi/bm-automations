@@ -182,5 +182,8 @@ export function devConfigErrors(config = loadWranglerConfig()) {
   if (!adminEmails.includes("admin@balancemoves.com.au")) {
     errors.push("env.dev ADMIN_EMAILS must include admin@balancemoves.com.au.");
   }
+  if (vars.DEFAULT_FROM_EMAIL !== SEND_EMAIL) {
+    errors.push(`env.dev DEFAULT_FROM_EMAIL must be ${SEND_EMAIL}.`);
+  }
   return errors;
 }

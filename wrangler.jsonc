@@ -65,56 +65,5 @@
       "TWILIO_ACCOUNT_SID",
       "TWILIO_AUTH_TOKEN"
     ]
-  },
-  // Wrangler does not inherit vars, secrets, or D1 into an environment.
-  // `./scripts/deploy.sh dev` deploys this as the Worker bm-automations-dev.
-  "env": {
-    "dev": {
-      "name": "bm-automations-dev",
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "bm-automations-dev",
-          // Replace this placeholder after `wrangler d1 create bm-automations-dev`.
-          "database_id": "00000000-0000-0000-0000-000000000000",
-          "migrations_dir": "migrations"
-        }
-      ],
-      "vars": {
-        "DEV_MODE": "true",
-        "DRY_RUN": "false",
-        "SEND_ALLOWLIST": "bondi@balancemoves.com.au",
-        "SMS_ALLOWLIST": "",
-        "MINDBODY_SITE_ID": "9853",
-        "LISTMONK_BASE_URL": "https://campaigns.balancemoves.com.au",
-        "LISTMONK_LIST_ID": "",
-        "LISTMONK_SUPPRESSED_LIST_ID": "",
-        "SYDNEY_SEND_HOUR": "9",
-        "ADMIN_EMAILS": "",
-        "DEFAULT_FROM_EMAIL": "",
-        "SMS_QUIET_START": "20:00",
-        "SMS_QUIET_END": "09:00",
-        "STUDIO_NAME": "Balance Moves",
-        "CONTACT_WRITE_MODE": "shared_sync",
-        "TWILIO_FROM_NUMBER": "",
-        "TWILIO_SENDER_NAME": ""
-      },
-      "secrets": {
-        "required": [
-          "MINDBODY_API_KEY",
-          "MINDBODY_STAFF_USERNAME",
-          "MINDBODY_STAFF_PASSWORD",
-          "MINDBODY_WEBHOOK_SIGNATURE_KEY",
-          "LISTMONK_API_USER",
-          "LISTMONK_API_TOKEN",
-          "GOOGLE_CLIENT_ID",
-          "GOOGLE_CLIENT_SECRET",
-          "SESSION_SECRET",
-          "SETTINGS_ENCRYPTION_KEY",
-          "TWILIO_ACCOUNT_SID",
-          "TWILIO_AUTH_TOKEN"
-        ]
-      }
-    }
   }
 }

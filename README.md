@@ -131,39 +131,6 @@ npx wrangler secret put TWILIO_AUTH_TOKEN
 
 `scripts/deploy.sh` runs `npm test` and `npm run typecheck` first. If either fails, wrangler does not deploy. The same checks run in `.github/workflows/ci.yml` on push and pull request.
 
-`.github/workflows/deploy.yml` deploys from `main`. A push deploys only the dev Worker `bm-automations-dev` (automations and the admin screens in one Worker). Production `bm-automations` deploys only when that workflow is run by hand and the target is production. `DEV_MODE` stays `true` and `SEND_ALLOWLIST` stays `bondi@balancemoves.com.au` in both. Every seeded automation is off, and `ensureSeed` does not turn one on. The same dev command without GitHub is `./scripts/deploy.sh dev`.
-
-GitHub Actions secrets for that workflow: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs Account / Cloudflare Workers / Edit, Account / D1 / Edit, and User Details / Read. Add Zone / Workers Routes / Edit only if a custom domain is attached. Replace the `database_id` placeholders in `wrangler.jsonc` after `wrangler d1 create` or the deploy cannot bind D1.
-
-## Dev environment
-
-`./scripts/deploy.sh dev` runs the same checks, then `wrangler deploy --env dev`. That publishes the Worker `bm-automations-dev` with its own D1 database `bm-automations-dev`. `DEV_MODE` stays `true`. Vars and secrets are repeated under `env.dev` because Wrangler does not inherit them.
-
-```bash
-npx wrangler d1 create bm-automations-dev
-```
-
-Put the returned id in `wrangler.jsonc` under `env.dev.d1_databases`, then:
-
-```bash
-npx wrangler d1 migrations apply bm-automations-dev --remote --env dev
-npx wrangler secret put MINDBODY_API_KEY --env dev
-npx wrangler secret put MINDBODY_STAFF_USERNAME --env dev
-npx wrangler secret put MINDBODY_STAFF_PASSWORD --env dev
-npx wrangler secret put MINDBODY_WEBHOOK_SIGNATURE_KEY --env dev
-npx wrangler secret put LISTMONK_API_USER --env dev
-npx wrangler secret put LISTMONK_API_TOKEN --env dev
-npx wrangler secret put GOOGLE_CLIENT_ID --env dev
-npx wrangler secret put GOOGLE_CLIENT_SECRET --env dev
-npx wrangler secret put SESSION_SECRET --env dev
-npx wrangler secret put SETTINGS_ENCRYPTION_KEY --env dev
-npx wrangler secret put TWILIO_ACCOUNT_SID --env dev
-npx wrangler secret put TWILIO_AUTH_TOKEN --env dev
-./scripts/deploy.sh dev
-```
-
-`LEAD_WEBHOOK_SECRET` is optional. Without it, `POST /webhooks/lead` returns 401. Set `ADMIN_EMAILS` on `env.dev` before relying on sign-in. Google's redirect URI is `https://<bm-automations-dev host>/auth/google/callback`.
-
 `ADMIN_EMAILS` is a var. Set it to the owner addresses before deploy, or staff cannot sign in. Google's redirect URI is `https://<worker-host>/auth/google/callback`.
 
 The webhook signing key is returned only when the Mindbody subscription is created. Subscribe only when ready:

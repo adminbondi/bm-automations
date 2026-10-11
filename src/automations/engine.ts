@@ -1,6 +1,6 @@
 import { contractMatches, nameMatchesTokens } from "../names";
-import { addDays, daysUntil } from "../time";
-import type { Automation, Channel, ServiceRecord, Visit } from "./types";
+import { addDays, daysUntil, nextAnnualDate } from "../time";
+import type { Automation, Channel, ServiceRecord, TimingKind, Visit } from "./types";
 
 export type Phase = "trigger" | "schedule" | "cron";
 
@@ -21,6 +21,9 @@ export type EvalContext = {
   contracts: { name: string }[];
   visitCrossingRecorded: boolean;
   windowAlreadyMatched: boolean;
+  services?: ServiceRecord[];
+  birthDate?: string | null;
+  remaining?: number | null;
 };
 
 export type Decision = {
@@ -36,21 +39,50 @@ export type Decision = {
 
 const DEFAULT_CLASS_PASS_TOKENS = ["classpass", "class pass"];
 
-export function countVisits(visits: Visit[], automation: Automation): number {
+function visitIncluded(visit: Visit, automation: Automation): boolean {
   const mode = automation.filters.visitCountMode ?? "signed_in";
   const scope = automation.skipRules.visitCountScope ?? "all";
   const includeClassPass = automation.filters.includeClassPassVisits ?? true;
   const classPassTokens = automation.filters.classPassNameIncludes ?? DEFAULT_CLASS_PASS_TOKENS;
   const packageTokens = automation.filters.packageNameIncludes ?? [];
+  if (visit.lateCancelled || visit.earlyCancelled) return false;
+  if (mode === "signed_in" && !visit.signedIn) return false;
+  if (!includeClassPass && nameMatchesTokens(visit.serviceName, classPassTokens)) return false;
+  if ((scope === "intro_pass" || scope === "matching_package") && !nameMatchesTokens(visit.serviceName, packageTokens)) {
+    return false;
+  }
+  return true;
+}
+
+export function countVisits(visits: Visit[], automation: Automation): number {
+  return visits.filter((visit) => visitIncluded(visit, automation)).length;
+}
+
+export function lastVisitDate(visits: Visit[], automation: Automation): string | null {
+  const dates = visits
+    .filter((visit) => visitIncluded(visit, automation) && visit.startSydney)
+    .map((visit) => visit.startSydney as string)
+    .sort();
+  return dates.at(-1) ?? null;
+}
+
+export function countVisitsInWindow(visits: Visit[], automation: Automation, todaySydney: string, windowDays: number): number {
   return visits.filter((visit) => {
-    if (visit.lateCancelled || visit.earlyCancelled) return false;
-    if (mode === "signed_in" && !visit.signedIn) return false;
-    if (!includeClassPass && nameMatchesTokens(visit.serviceName, classPassTokens)) return false;
-    if ((scope === "intro_pass" || scope === "matching_package") && !nameMatchesTokens(visit.serviceName, packageTokens)) {
-      return false;
-    }
-    return true;
+    if (!visitIncluded(visit, automation) || !visit.startSydney) return false;
+    const since = daysUntil(visit.startSydney, todaySydney);
+    return since >= 0 && since <= windowDays;
   }).length;
+}
+
+export function selectRemaining(services: ServiceRecord[], tokens: string[]): number | null {
+  const pool = services.filter((service) => {
+    if (!service.current || typeof service.remaining !== "number") return false;
+    if (tokens.length > 0 && !nameMatchesTokens(service.name, tokens)) return false;
+    return true;
+  });
+  if (pool.length === 0) return null;
+  const sorted = [...pool].sort((left, right) => (left.expirationSydney ?? "9999-12-31").localeCompare(right.expirationSydney ?? "9999-12-31"));
+  return sorted[0]?.remaining ?? null;
 }
 
 export function selectPassExpiry(services: ServiceRecord[], tokens: string[]): string | null {
@@ -111,7 +143,33 @@ function filtersPass(automation: Automation, ctx: EvalContext): { ok: true } | {
     const matched = ctx.candidatePackageNames.some((name) => nameMatchesTokens(name, filters.packageNameIncludes ?? []));
     if (!matched) return { ok: false, reason: "package_filter_miss" };
   }
+  if (filters.exactRemaining != null || filters.minRemaining != null || filters.maxRemaining != null) {
+    if (ctx.remaining == null) return { ok: false, reason: "remaining_unknown" };
+    if (filters.exactRemaining != null && ctx.remaining !== filters.exactRemaining) {
+      return { ok: false, reason: "remaining_not_exact" };
+    }
+    if (filters.minRemaining != null && ctx.remaining < filters.minRemaining) {
+      return { ok: false, reason: "remaining_below_min" };
+    }
+    if (filters.maxRemaining != null && ctx.remaining > filters.maxRemaining) {
+      return { ok: false, reason: "remaining_above_max" };
+    }
+  }
+  if (filters.clientActivity) {
+    const active = clientIsActive(ctx);
+    if (filters.clientActivity === "active" && !active) return { ok: false, reason: "not_active" };
+    if (filters.clientActivity === "inactive" && active) return { ok: false, reason: "not_inactive" };
+  }
   return { ok: true };
+}
+
+function clientIsActive(ctx: EvalContext): boolean {
+  if (ctx.contracts.length > 0) return true;
+  return (ctx.services ?? []).some((service) => {
+    if (!service.current) return false;
+    if (!service.expirationSydney) return true;
+    return service.expirationSydney >= ctx.todaySydney;
+  });
 }
 
 function applySkipRules(automation: Automation, ctx: EvalContext): Decision {
@@ -149,10 +207,45 @@ function applySkipRules(automation: Automation, ctx: EvalContext): Decision {
       return decide(automation, "skip", "visits_not_exact", warnings, data);
     }
   }
+  if (rules.maxVisits != null && visits > rules.maxVisits) {
+    return decide(automation, "skip", "visits_above_max", warnings, data);
+  }
+  if (rules.everyNthVisit != null && rules.everyNthVisit > 0) {
+    const step = rules.everyNthVisit;
+    const stillShort = automation.timingKind === "immediate" && !ctx.visitCrossingRecorded && visits < step;
+    if (stillShort) return decide(automation, "keep_pending", "visits_not_yet", warnings, data);
+    if (visits <= 0 || visits % step !== 0) return decide(automation, "skip", "visits_not_multiple", warnings, data);
+  }
+  if (rules.visitWindowDays != null) {
+    const inWindow = countVisitsInWindow(ctx.visits, automation, ctx.todaySydney, rules.visitWindowDays);
+    const min = rules.minVisitsInWindow ?? 1;
+    const max = rules.maxVisitsInWindow ?? Number.POSITIVE_INFINITY;
+    const stillShort = automation.timingKind === "immediate" && !ctx.visitCrossingRecorded && inWindow < min;
+    if (stillShort) return decide(automation, "keep_pending", "visits_not_yet", warnings, data);
+    if (inWindow < min || inWindow > max) return decide(automation, "skip", "visits_outside_window", warnings, data);
+  }
   if (rules.skipIfPassExpired && ctx.passExpirationSydney && daysUntil(ctx.todaySydney, ctx.passExpirationSydney) < 0) {
     return decide(automation, "skip", "pass_expired", warnings, data);
   }
-  return decide(automation, "send", "send", warnings, data);
+  if (automation.channel === "email" && (automation.templateId === null || automation.templateId <= 0)) {
+    return decide(automation, "keep_pending", "template_missing", warnings, data);
+  }
+  const birthdayNext = birthdayKind(automation.timingKind) ? nextBirthday(automation.timingKind, ctx.birthDate ?? null, addDays(ctx.todaySydney, 1)) : null;
+  return decide(automation, "send", "send", warnings, data, birthdayNext ?? undefined);
+}
+
+function birthdayKind(kind: TimingKind): boolean {
+  return kind === "birthday_day" || kind === "birthday_month_start";
+}
+
+function birthdayMonthDay(kind: TimingKind, birthDate: string): string {
+  if (kind === "birthday_month_start") return `${birthDate.slice(5, 7)}-01`;
+  return birthDate.slice(5);
+}
+
+function nextBirthday(kind: TimingKind, birthDate: string | null, todaySydney: string): string | null {
+  if (!birthDate || birthDate.length < 10) return null;
+  return nextAnnualDate(todaySydney, birthdayMonthDay(kind, birthDate));
 }
 
 function scheduleDecision(automation: Automation, ctx: EvalContext, warnings: string[]): Decision {
@@ -161,6 +254,14 @@ function scheduleDecision(automation: Automation, ctx: EvalContext, warnings: st
   }
   if (automation.timingKind === "days_before_expiry" || automation.timingKind === "days_after_expiry") {
     return decide(automation, "schedule", "scheduled", warnings, {}, ctx.anchorSydney);
+  }
+  if (automation.timingKind === "days_since_last_visit") {
+    const last = lastVisitDate(ctx.visits, automation) ?? ctx.anchorSydney;
+    return decide(automation, "schedule", "scheduled", warnings, {}, addDays(last, automation.timingOffsetDays ?? 0));
+  }
+  if (birthdayKind(automation.timingKind)) {
+    const due = nextBirthday(automation.timingKind, ctx.birthDate ?? null, ctx.todaySydney) ?? ctx.anchorSydney;
+    return decide(automation, "schedule", "scheduled", warnings, {}, due);
   }
   return decide(automation, "skip", "timing_not_schedulable", warnings, {});
 }
@@ -203,11 +304,25 @@ export function evaluateAutomation(automation: Automation, ctx: EvalContext): De
     if (!ctx.passExpirationSydney) return decide(automation, "keep_pending", "expiry_unknown", warnings, {});
     const delta = daysUntil(ctx.todaySydney, ctx.passExpirationSydney);
     if (!ctx.windowAlreadyMatched) {
-      if (delta >= 0) return decide(automation, "keep_pending", "not_due", warnings, {});
+      if (delta > 0) return decide(automation, "keep_pending", "not_due", warnings, {});
       const since = -delta;
       if (since < offset) return decide(automation, "keep_pending", "not_due", warnings, {});
       if (since > offset) return decide(automation, "skip", "missed_window", warnings, {});
     }
+  }
+  if (automation.timingKind === "days_since_last_visit") {
+    const offset = automation.timingOffsetDays ?? 0;
+    const last = lastVisitDate(ctx.visits, automation);
+    if (!last) return decide(automation, "keep_pending", "last_visit_unknown", warnings, {});
+    const since = daysUntil(last, ctx.todaySydney);
+    if (since < offset) return decide(automation, "keep_pending", "not_due", warnings, {}, addDays(last, offset));
+    if (since > offset && !ctx.windowAlreadyMatched) return decide(automation, "skip", "missed_window", warnings, {});
+  }
+  if (birthdayKind(automation.timingKind)) {
+    const birth = ctx.birthDate ?? null;
+    if (!birth) return decide(automation, "keep_pending", "birth_date_unknown", warnings, {});
+    const due = nextBirthday(automation.timingKind, birth, ctx.todaySydney);
+    if (due !== ctx.todaySydney) return decide(automation, "keep_pending", "not_due", warnings, {}, due ?? undefined);
   }
   const filters = filtersPass(automation, ctx);
   if (!filters.ok) return decide(automation, "skip", filters.reason, warnings, {});

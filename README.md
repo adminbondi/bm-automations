@@ -1,6 +1,6 @@
 # bm-automations
 
-Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the nine LoyalSnap emails and adds the four LoyalSnap trial texts as SMS. Rules live in D1. Nothing sends until an owner enables that row.
+Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the LoyalSnap automations that were on, and seeds the ones that were off so an owner can recreate them. Rules live in D1. Nothing sends until an owner enables that row. `COVERAGE.md` maps all 71 automations, the 19 dashboard lanes, and the client lists.
 
 Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. Signed-in owners manage the rows at `/automations`, the send log at `/log`, and connections at `/settings`. Tasks links out to the task dashboard.
 
@@ -12,6 +12,16 @@ Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, 
 - SMS quiet hours default to 20:00–09:00 Australia/Sydney (end exclusive, so 09:00 is allowed). The default action holds the text and sends after quiet hours. Settings can switch that to skip. The test-text endpoint always requires an allowlisted number, including when dev mode is off.
 - Texts send from the Twilio number unless Settings chooses a sender name. An optional "Reply STOP" footer is off until an owner turns it on.
 - Do not deploy this worker or register Mindbody webhooks until owners turn dev mode off on purpose. Amazon SES for listmonk is still in sandbox.
+
+## Coverage
+
+`COVERAGE.md` is the audit. The 13 automations that were on in LoyalSnap keep listmonk templates 5–13. The other 58 are seeded disabled. Emails with no listmonk template id do not send; the job waits with `template_missing`. Package and contract names that were not in the export are an empty list, which matches nothing until an owner fills them in.
+
+New timing and filters, all data on the row: `days_since_last_visit`, `birthday_day`, `birthday_month_start`, `everyNthVisit`, a visit window, remaining credits (`exactRemaining`, `minRemaining`, `maxRemaining`), and `clientActivity` active or inactive. Visit rows store a Sydney start date. Services store Mindbody `Remaining`. Profiles store `BirthDate` and `ReferredBy`.
+
+External leads are not a Mindbody event. `POST /webhooks/lead` accepts the same JSON shape as a Mindbody webhook (`eventId` `lead.created`) and requires header `X-Lead-Token` equal to the `LEAD_WEBHOOK_SECRET` secret. If that secret is unset, the route returns 401. It does not talk to Facebook.
+
+Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.ts`. They do not send. The red-flag lane is a gap until owners set how many days count as low usage. Static client-list titles are gaps: the export had titles only.
 
 ## Run locally
 
@@ -98,8 +108,10 @@ npx wrangler secret put SESSION_SECRET
 npx wrangler secret put SETTINGS_ENCRYPTION_KEY
 npx wrangler secret put TWILIO_ACCOUNT_SID
 npx wrangler secret put TWILIO_AUTH_TOKEN
-npx wrangler deploy
+./scripts/deploy.sh
 ```
+
+`scripts/deploy.sh` runs `npm test` and `npm run typecheck` first. If either fails, wrangler does not deploy. The same checks run in `.github/workflows/ci.yml` on push and pull request.
 
 `ADMIN_EMAILS` is a var. Set it to the owner addresses before deploy, or staff cannot sign in. Google's redirect URI is `https://<worker-host>/auth/google/callback`.
 

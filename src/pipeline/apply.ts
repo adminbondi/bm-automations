@@ -35,18 +35,28 @@ async function applyPlan(plan: GatedPlan, options: ApplyOptions): Promise<void> 
     return;
   }
   if (plan.outcome === "schedule" && plan.decision.dueOn) {
-    await options.repo.enqueueJob({
+    const inserted = await options.repo.enqueueJob({
       automationId: plan.automation.id,
       clientId: options.clientId,
       templateId: plan.templateId,
       dueOn: plan.decision.dueOn,
       payload: options.payload ?? {},
     });
+    if (inserted === "exists" && movesDueDate(plan.automation.timingKind)) {
+      await options.repo.reschedulePending(plan.automation.id, options.clientId, plan.decision.dueOn);
+    }
     return;
   }
   if (plan.outcome === "keep_pending") {
     const payload = options.payload ?? {};
-    if (options.jobId) await options.repo.updateJob(options.jobId, { status: "pending", reason: plan.reason, payload });
+    if (options.jobId) {
+      await options.repo.updateJob(options.jobId, {
+        status: "pending",
+        reason: plan.reason,
+        payload,
+        ...(plan.decision.dueOn ? { dueOn: plan.decision.dueOn } : {}),
+      });
+    }
     else {
       await options.repo.enqueueJob({
         automationId: plan.automation.id,
@@ -89,9 +99,11 @@ async function applyPlan(plan: GatedPlan, options: ApplyOptions): Promise<void> 
   if ((plan.listmonkCall || plan.twilioCall) && plan.dedupeKey) {
     const result = plan.twilioCall ? await deliverSms(plan, options, plan.dedupeKey) : await deliverEmail(plan, options, plan.dedupeKey);
     if (options.jobId) {
+      const repeat = result === "sent" && plan.automation.skipRules.repeat === "yearly" && plan.decision.dueOn;
       await options.repo.updateJob(options.jobId, {
-        status: result === "sent" || result === "blocked" ? (result === "sent" ? "sent" : "skipped") : "pending",
-        reason: result === "sent" ? "sent" : plan.reason,
+        status: repeat ? "pending" : result === "sent" || result === "blocked" ? (result === "sent" ? "sent" : "skipped") : "pending",
+        reason: repeat ? "repeat_next_year" : result === "sent" ? "sent" : plan.reason,
+        ...(repeat && plan.decision.dueOn ? { dueOn: plan.decision.dueOn } : {}),
       });
     }
     return;
@@ -117,6 +129,10 @@ async function applyPlan(plan: GatedPlan, options: ApplyOptions): Promise<void> 
     return;
   }
   if (plan.terminal && options.jobId) await options.repo.updateJob(options.jobId, { status: "skipped", reason: plan.reason });
+}
+
+function movesDueDate(kind: GatedPlan["automation"]["timingKind"]): boolean {
+  return kind === "days_since_last_visit" || kind === "birthday_day" || kind === "birthday_month_start";
 }
 
 function keepsJob(plan: GatedPlan): boolean {

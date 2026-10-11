@@ -61,6 +61,20 @@ export function addDays(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function nextAnnualDate(today: string, monthDay: string): string {
+  const [month, day] = monthDay.split("-").map(Number);
+  const year = Number(today.slice(0, 4));
+  const thisYear = annualDate(year, month ?? 1, day ?? 1);
+  if (thisYear >= today) return thisYear;
+  return annualDate(year + 1, month ?? 1, day ?? 1);
+}
+
+function annualDate(year: number, month: number, day: number): string {
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCMonth() !== month - 1) return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  return probe.toISOString().slice(0, 10);
+}
+
 export function daysUntil(today: string, later: string): number {
   const start = Date.parse(`${today}T00:00:00Z`);
   const end = Date.parse(`${later}T00:00:00Z`);

@@ -1,4 +1,4 @@
-import { selectPassExpiry, evaluateAutomation, type EvalContext, type Decision } from "../automations/engine";
+import { countVisits, selectPassExpiry, selectRemaining, evaluateAutomation, type EvalContext, type Decision } from "../automations/engine";
 import { dedupeKey, gateSend, unsubscribeUrl, withUnsubscribe, type GateResult } from "../automations/gate";
 import { renderSms } from "../sms";
 import type { Automation, Channel, ServiceRecord, Visit } from "../automations/types";
@@ -32,6 +32,7 @@ export type PlanFacts = {
   listmonkBaseUrl: string;
   withinQuietHours: boolean;
   quietAction?: "hold" | "skip";
+  birthDate?: string | null;
 };
 
 export type GatedPlan = {
@@ -105,7 +106,17 @@ function contextFor(automation: Automation, facts: PlanFacts, phase: EvalContext
     contracts: facts.contracts,
     visitCrossingRecorded: facts.visitCrossingRecorded,
     windowAlreadyMatched: facts.windowAlreadyMatched,
+    services: facts.services,
+    birthDate: facts.birthDate ?? null,
+    remaining: selectRemaining(facts.services, tokens),
   };
+}
+
+function dedupeScope(automation: Automation, facts: PlanFacts): string | null {
+  const scope = automation.skipRules.dedupeScope ?? "client";
+  if (scope === "visit_milestone") return `visits:${countVisits(facts.visits, automation)}`;
+  if (scope === "calendar_year") return `year:${facts.todaySydney.slice(0, 4)}`;
+  return null;
 }
 
 function gatePlan(
@@ -141,7 +152,7 @@ function gatePlan(
       copy: recipient === "copy",
     };
   }
-  const key = dedupeKey(automation.id, facts.clientId, recipient);
+  const key = dedupeKey(automation.id, facts.clientId, recipient, dedupeScope(automation, facts));
   const gate = gateSend({
     devMode: facts.devMode,
     dryRun: facts.dryRun,

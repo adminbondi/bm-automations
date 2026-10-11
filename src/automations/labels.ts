@@ -30,6 +30,7 @@ function fallbackTrigger(automation: Automation): string {
   if (automation.triggerEvents.includes("clientSale.created")) return "Sale (Intro Pass)";
   if (automation.triggerEvents.includes("clientContract.created")) return "New contract";
   if (automation.triggerEvents.includes("classRosterBooking.created")) return "Class booking";
+  if (automation.triggerEvents.includes("lead.created")) return "External lead received";
   if (automation.triggerEvents.includes("client.created")) return "New client";
   return automation.triggerEvents.join(", ") || "Daily 9am Sydney check";
 }
@@ -42,6 +43,9 @@ function fallbackDelay(automation: Automation): string {
   }
   if (automation.timingKind === "days_before_expiry") return `Expiry − ${days} day${days === 1 ? "" : "s"}`;
   if (automation.timingKind === "days_after_expiry") return `Expiry + ${days} day${days === 1 ? "" : "s"}`;
+  if (automation.timingKind === "days_since_last_visit") return `${days} days since last visit`;
+  if (automation.timingKind === "birthday_day") return "Birthday";
+  if (automation.timingKind === "birthday_month_start") return "1st of birthday month";
   return `Day ${days}`;
 }
 

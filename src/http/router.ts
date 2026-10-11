@@ -2,7 +2,7 @@ import { clearSessionCookie, isAdminEmail, readSession } from "../auth";
 import { log } from "../log";
 import { normalizePhone } from "../phone";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
-import { handleWebhook, previewBody, publicPlan } from "../pipeline/webhook";
+import { handleLeadWebhook, handleWebhook, previewBody, publicPlan } from "../pipeline/webhook";
 import { runScheduled } from "../pipeline/cron";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
@@ -36,6 +36,10 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
   }
   if (url.pathname === "/webhooks/mindbody" && request.method === "POST") {
     const result = await handleWebhook(request, env, deps);
+    return Response.json(result.body, { status: result.status });
+  }
+  if (url.pathname === "/webhooks/lead" && request.method === "POST") {
+    const result = await handleLeadWebhook(request, env, deps);
     return Response.json(result.body, { status: result.status });
   }
   const config = runtimeConfig(bindingsFromEnv(env));

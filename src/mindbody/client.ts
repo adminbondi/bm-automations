@@ -13,6 +13,8 @@ export type ClientProfile = {
   lastName: string | null;
   createdAt: string | null;
   waiverSigned: boolean;
+  birthDate?: string | null;
+  referredBy?: string | null;
 };
 
 export type ClientSnapshot = {
@@ -91,6 +93,8 @@ export class MindbodyClient {
       lastName: stringOrNull(client.LastName),
       createdAt: stringOrNull(client.CreationDate),
       waiverSigned: client.LiabilityRelease === true || client.IsLiabilityReleased === true || liability?.IsReleased === true,
+      birthDate: toSydneyDate(stringOrNull(client.BirthDate)),
+      referredBy: stringOrNull(client.ReferredBy),
     };
   }
 
@@ -106,6 +110,7 @@ export class MindbodyClient {
         name: stringOrNull(service.Name) ?? "",
         expirationSydney: toSydneyDate(stringOrNull(service.ExpirationDate)),
         current: service.Current !== false,
+        remaining: typeof service.Remaining === "number" ? service.Remaining : null,
       };
     });
   }
@@ -137,6 +142,7 @@ export class MindbodyClient {
           lateCancelled: visit.LateCancelled === true || status === "LateCancelled" || status === "LateCancel",
           earlyCancelled: visit.EarlyCancelled === true || status === "EarlyCancelled" || status === "EarlyCancel",
           serviceName: stringOrNull(visit.ServiceName) ?? stringOrNull(visit.Name) ?? "",
+          startSydney: toSydneyDate(stringOrNull(visit.StartDateTime) ?? stringOrNull(visit.ClassDate)),
         });
       }
       const total = numberOrNull((body.PaginationResponse as { TotalResults?: number } | undefined)?.TotalResults);

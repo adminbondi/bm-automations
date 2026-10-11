@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createSessionToken } from "../src/auth";
 import { applyEditor, derivedAudience, derivedDelay, derivedTrigger } from "../src/http/editor";
 import { createApp } from "../src/index";
-import { findSeed, SMS_DAY_7 } from "../src/automations/seed";
+import { findSeed, SEED_AUTOMATIONS, SMS_DAY_7 } from "../src/automations/seed";
 import { TEMPLATE_SUBJECTS } from "../src/automations/subjects";
 import { withReplyStop } from "../src/sms";
 import { asD1, openSqlite, testEnv } from "./helpers";
@@ -63,7 +63,7 @@ describe("admin pages", () => {
     expect(html).toContain("Welcome aboard — we’ve saved your spot!");
     expect(html).toContain("https://mb-task-dashboard.plain-bush-daad.workers.dev/");
     expect(html).toContain("Trial day 7 – no class booked");
-    expect(html).toContain("All 13 automations are <b>off</b>");
+    expect(html).toContain(`All ${SEED_AUTOMATIONS.length} automations are <b>off</b>`);
     const settings = await app.fetch(new Request("https://automations.example/settings", { headers }), env, {} as ExecutionContext);
     const settingsHtml = await settings.text();
     expect(settingsHtml).toContain("Not connected");

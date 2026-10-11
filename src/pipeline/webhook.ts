@@ -1,3 +1,4 @@
+import { timingSafeEqualString } from "../crypto-equal";
 import { verifyMindbodySignature } from "../signature";
 import { parseMindbodyEvent } from "../mindbody/events";
 import { log } from "../log";
@@ -24,6 +25,22 @@ export async function handleWebhook(request: Request, env: Env, deps: AppDeps): 
   if (!valid) return { status: 401, body: { error: "invalid_signature" } };
   const readOnly = isDryRunHeader(request.headers.get("X-Dry-Run"));
   return runBody(raw, loaded, deps, readOnly);
+}
+
+export async function handleLeadWebhook(request: Request, env: Env, deps: AppDeps): Promise<WebhookResult> {
+  let loaded: Loaded;
+  try {
+    loaded = await loadRuntime(env, deps);
+  } catch (error) {
+    log({ event: "lead_webhook_failed", message: error instanceof Error ? error.message : "runtime" });
+    return { status: 500, body: { error: "upstream_failed" } };
+  }
+  if (!loaded.config.leadWebhookSecret) return { status: 401, body: { error: "lead_webhook_disabled" } };
+  const header = request.headers.get("X-Lead-Token") ?? "";
+  if (!(await timingSafeEqualString(header, loaded.config.leadWebhookSecret))) {
+    return { status: 401, body: { error: "invalid_token" } };
+  }
+  return runBody(await request.text(), loaded, deps, isDryRunHeader(request.headers.get("X-Dry-Run")));
 }
 
 export async function previewBody(raw: string, env: Env, deps: AppDeps): Promise<WebhookResult> {

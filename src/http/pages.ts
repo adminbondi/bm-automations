@@ -62,12 +62,13 @@ export function editPage(automation: Automation | null, settings: PublicSettings
   const audience = automation ? derivedAudience(automation) : "all";
   const delay = automation ? derivedDelay(automation) : "immediate";
   const days = automation?.timingOffsetDays ?? (delay === "immediate" ? "" : 0);
-  const templateId = automation?.channel === "email" ? automation.templateId ?? 5 : 5;
+  const templateId = automation?.channel === "email" ? automation.templateId ?? null : 5;
   const message = automation?.messageText ?? "";
-  const subject = TEMPLATE_SUBJECTS[templateId] ?? "";
+  const subject = templateId ? TEMPLATE_SUBJECTS[templateId] ?? "" : "";
   const fromLine = `${settings.defaultFromName} &lt;${escapeHtml(settings.defaultFromEmail)}&gt;`;
   const stop = settings.appendReplyStop ? "on" : "off";
-  const templates = Object.entries(TEMPLATE_SUBJECTS)
+  const blank = `<option value=""${channel === "email" && templateId === null ? " selected" : ""}>No listmonk template yet</option>`;
+  const templates = blank + Object.entries(TEMPLATE_SUBJECTS)
     .map(([id, text]) => `<option value="${id}"${Number(id) === templateId && channel === "email" ? " selected" : ""}>${escapeHtml(`${id} · ${text}`)}</option>`)
     .join("");
   const check = (nameAttr: string, label: string, checked: boolean) =>
@@ -231,6 +232,7 @@ function triggerOptions(current: TriggerChoice): string {
     ["sign-in", "Class sign-in"],
     ["booking", "Class booking"],
     ["classpass", "First ClassPass booking"],
+    ["lead", "External lead received"],
   ];
   const head = options[0];
   const rest = options.slice(1);
@@ -256,6 +258,10 @@ function delayOptions(current: DelayChoice): string {
     ["after-created", "days after client created"],
     ["before-expiry", "days before pass expiry"],
     ["after-expiry", "days after pass expiry"],
+    ["after-lead", "days after an external lead"],
+    ["since-last-visit", "days since last visit"],
+    ["birthday", "on their birthday"],
+    ["birthday-month", "on the 1st of their birthday month"],
     ["immediate", "immediately"],
   ];
   return options.map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`).join("");

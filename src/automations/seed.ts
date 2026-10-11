@@ -1,3 +1,4 @@
+import { COVERAGE_AUTOMATIONS } from "./coverage-seed";
 import type { Automation } from "./types";
 
 export const INTRO_PASS_TOKENS = ["2 week", "2-week", "7 day", "7-day", "intro pass"];
@@ -340,6 +341,8 @@ export const SEED_AUTOMATIONS: Automation[] = [
       "LoyalSnap text 561559. Ten Sydney days after a 2 Week Trial expires. The 7-day intro is not included. The LoyalSnap description does not skip memberships. Source channel was WhatsApp/text; this row is SMS.",
   }),
 ];
+
+SEED_AUTOMATIONS.push(...COVERAGE_AUTOMATIONS);
 
 export function findSeed(key: string): Automation {
   const found = SEED_AUTOMATIONS.find((automation) => automation.key === key);

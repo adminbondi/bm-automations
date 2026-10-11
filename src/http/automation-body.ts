@@ -88,7 +88,7 @@ export function mergeAutomation(current: Automation, body: unknown): Automation 
 
 export function validateAutomation(automation: Automation): Automation | string {
   if (automation.channel === "email") {
-    if (automation.templateId === null || !Number.isInteger(automation.templateId) || automation.templateId <= 0) return "template_required";
+    if (automation.templateId !== null && (!Number.isInteger(automation.templateId) || automation.templateId <= 0)) return "template_required";
     automation.messageText = null;
   } else if (!automation.messageText) {
     return "message_required";

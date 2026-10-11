@@ -45,9 +45,16 @@ export function gateSend(input: GateInput): GateResult {
   return { outcome: "send", listmonkCall: true, twilioCall: false, reason: "send", terminal: true, email: email ?? "", phone: null };
 }
 
-export function dedupeKey(automationId: number, clientId: string, recipient: "primary" | "copy" = "primary"): string {
-  if (recipient === "copy") return `automation:${automationId}:client:${clientId}:copy`;
-  return `automation:${automationId}:client:${clientId}`;
+export function dedupeKey(
+  automationId: number,
+  clientId: string,
+  recipient: "primary" | "copy" = "primary",
+  scope: string | null = null,
+): string {
+  const base = recipient === "copy"
+    ? `automation:${automationId}:client:${clientId}:copy`
+    : `automation:${automationId}:client:${clientId}`;
+  return scope ? `${base}:${scope}` : base;
 }
 
 export function unsubscribeUrl(baseUrl: string, subscriberUuid: string | null): string {

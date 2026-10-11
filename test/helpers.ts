@@ -87,6 +87,7 @@ export function visit(partial: Partial<Visit> & Pick<Visit, "serviceName">): Vis
     lateCancelled: partial.lateCancelled ?? false,
     earlyCancelled: partial.earlyCancelled ?? false,
     serviceName: partial.serviceName,
+    startSydney: partial.startSydney ?? null,
   };
 }
 

@@ -146,6 +146,7 @@ export async function factsFromClient(input: {
     listmonkBaseUrl: loaded.connections.listmonkBaseUrl,
     withinQuietHours: loaded.withinQuietHours,
     quietAction: loaded.connections.quietAction,
+    birthDate: snapshot.profile.birthDate ?? null,
   };
 }
 

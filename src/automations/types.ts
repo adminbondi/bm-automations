@@ -1,4 +1,12 @@
-export const TIMING_KINDS = ["immediate", "delay_days", "days_before_expiry", "days_after_expiry"] as const;
+export const TIMING_KINDS = [
+  "immediate",
+  "delay_days",
+  "days_before_expiry",
+  "days_after_expiry",
+  "days_since_last_visit",
+  "birthday_day",
+  "birthday_month_start",
+] as const;
 export type TimingKind = (typeof TIMING_KINDS)[number];
 
 export const CHANNELS = ["email", "sms"] as const;
@@ -7,6 +15,9 @@ export type Channel = (typeof CHANNELS)[number];
 export type VisitCountMode = "signed_in" | "booked";
 export type VisitCountScope = "all" | "intro_pass" | "matching_package";
 
+export type ClientActivity = "active" | "inactive";
+export type DedupeScope = "client" | "visit_milestone" | "calendar_year";
+
 export type AutomationFilters = {
   packageNameIncludes?: string[];
   contractNames?: string[];
@@ -14,6 +25,10 @@ export type AutomationFilters = {
   visitCountMode?: VisitCountMode;
   includeClassPassVisits?: boolean;
   classPassNameIncludes?: string[];
+  minRemaining?: number;
+  maxRemaining?: number;
+  exactRemaining?: number;
+  clientActivity?: ClientActivity;
 };
 
 export type AutomationSkipRules = {
@@ -27,10 +42,17 @@ export type AutomationSkipRules = {
   skipIfHasBooking?: boolean;
   minVisits?: number;
   exactVisits?: number;
+  maxVisits?: number;
+  everyNthVisit?: number;
+  visitWindowDays?: number;
+  minVisitsInWindow?: number;
+  maxVisitsInWindow?: number;
   visitCountScope?: VisitCountScope;
   skipIfPassExpired?: boolean;
   skipIfWaiverSigned?: boolean;
   includeVisitsInData?: boolean;
+  dedupeScope?: DedupeScope;
+  repeat?: "yearly";
 };
 
 export type Automation = {
@@ -57,12 +79,14 @@ export type Visit = {
   lateCancelled: boolean;
   earlyCancelled: boolean;
   serviceName: string;
+  startSydney?: string | null;
 };
 
 export type ServiceRecord = {
   name: string;
   expirationSydney: string | null;
   current: boolean;
+  remaining?: number | null;
 };
 
 export type ContractRecord = {

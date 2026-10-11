@@ -293,21 +293,32 @@ export class Repo {
     }));
   }
 
-  async updateJob(id: number, input: { status?: string; reason?: string | null; payload?: JobPayload }): Promise<void> {
+  async updateJob(id: number, input: { status?: string; reason?: string | null; payload?: JobPayload; dueOn?: string }): Promise<void> {
     const current = await this.db
-      .prepare(`SELECT status, reason, payload_json FROM scheduled_jobs WHERE id = ?`)
+      .prepare(`SELECT status, reason, payload_json, due_on FROM scheduled_jobs WHERE id = ?`)
       .bind(id)
-      .first<{ status: string; reason: string | null; payload_json: string | null }>();
+      .first<{ status: string; reason: string | null; payload_json: string | null; due_on: string }>();
     if (!current) return;
     await this.db
-      .prepare(`UPDATE scheduled_jobs SET status = ?, reason = ?, payload_json = ?, updated_at = ? WHERE id = ?`)
+      .prepare(`UPDATE scheduled_jobs SET status = ?, reason = ?, payload_json = ?, due_on = ?, updated_at = ? WHERE id = ?`)
       .bind(
         input.status ?? current.status,
         input.reason === undefined ? current.reason : input.reason,
         input.payload ? JSON.stringify(input.payload) : current.payload_json,
+        input.dueOn ?? current.due_on,
         this.now(),
         id,
       )
+      .run();
+  }
+
+  async reschedulePending(automationId: number, clientId: string, dueOn: string): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE scheduled_jobs SET due_on = ?, status = 'pending', reason = 'rescheduled', updated_at = ?
+         WHERE automation_id = ? AND client_id = ? AND status = 'pending'`,
+      )
+      .bind(dueOn, this.now(), automationId, clientId)
       .run();
   }
 

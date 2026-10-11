@@ -30,6 +30,7 @@ export interface RuntimeBindings {
   SETTINGS_ENCRYPTION_KEY?: string;
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
+  LEAD_WEBHOOK_SECRET?: string;
 }
 
 export type RuntimeConfig = {
@@ -61,6 +62,7 @@ export type RuntimeConfig = {
   settingsEncryptionKey: string;
   twilioAccountSid: string;
   twilioAuthToken: string;
+  leadWebhookSecret: string;
 };
 
 export function parseDevMode(value: string | undefined): boolean {
@@ -128,6 +130,7 @@ export function runtimeConfig(env: RuntimeBindings): RuntimeConfig {
     settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY ?? "",
     twilioAccountSid: env.TWILIO_ACCOUNT_SID ?? "",
     twilioAuthToken: env.TWILIO_AUTH_TOKEN ?? "",
+    leadWebhookSecret: env.LEAD_WEBHOOK_SECRET ?? "",
   };
 }
 
@@ -165,5 +168,6 @@ export function bindingsFromEnv(env: Env): RuntimeBindings {
     SETTINGS_ENCRYPTION_KEY: secret("SETTINGS_ENCRYPTION_KEY"),
     TWILIO_ACCOUNT_SID: secret("TWILIO_ACCOUNT_SID"),
     TWILIO_AUTH_TOKEN: secret("TWILIO_AUTH_TOKEN"),
+    LEAD_WEBHOOK_SECRET: secret("LEAD_WEBHOOK_SECRET"),
   };
 }

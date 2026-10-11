@@ -2,9 +2,18 @@ import { CLASS_PASS_TOKENS, INTRO_PASS_TOKENS, TWO_WEEK_TOKENS } from "../automa
 import type { Automation, AutomationFilters } from "../automations/types";
 import { validateAutomation } from "./automation-body";
 
-export type TriggerChoice = "daily" | "client" | "sale" | "contract" | "sign-in" | "booking" | "classpass";
+export type TriggerChoice = "daily" | "client" | "sale" | "contract" | "sign-in" | "booking" | "classpass" | "lead";
 export type AudienceChoice = "intro" | "two-week" | "leads" | "members" | "classpass" | "all";
-export type DelayChoice = "after-purchase" | "after-created" | "before-expiry" | "after-expiry" | "immediate";
+export type DelayChoice =
+  | "after-purchase"
+  | "after-created"
+  | "after-lead"
+  | "before-expiry"
+  | "after-expiry"
+  | "since-last-visit"
+  | "birthday"
+  | "birthday-month"
+  | "immediate";
 
 export type EditorInput = {
   name: string;
@@ -28,6 +37,7 @@ const CLASS_KEY = tokenKey(CLASS_PASS_TOKENS);
 export function derivedTrigger(automation: Automation): TriggerChoice {
   const events = automation.triggerEvents;
   if (events.includes("client.created") && events.includes("classRosterBooking.created")) return "classpass";
+  if (events.includes("lead.created")) return "lead";
   if (events.includes("cron")) return "daily";
   if (events.includes("classRosterBookingStatus.updated")) return "sign-in";
   if (events.includes("classRosterBooking.created")) return "booking";
@@ -58,6 +68,10 @@ export function derivedDelay(automation: Automation): DelayChoice {
   if (automation.timingKind === "immediate") return "immediate";
   if (automation.timingKind === "days_before_expiry") return "before-expiry";
   if (automation.timingKind === "days_after_expiry") return "after-expiry";
+  if (automation.timingKind === "days_since_last_visit") return "since-last-visit";
+  if (automation.timingKind === "birthday_day") return "birthday";
+  if (automation.timingKind === "birthday_month_start") return "birthday-month";
+  if (automation.scheduleOnEvents.includes("lead.created")) return "after-lead";
   if (automation.scheduleOnEvents.includes("client.created") && !automation.scheduleOnEvents.includes("clientSale.created")) {
     return "after-created";
   }
@@ -93,7 +107,7 @@ export function applyEditor(current: Automation, input: EditorInput, enabled: bo
   next.enabled = enabled;
   if (input.channel === "email") {
     const templateId = Number(input.templateId);
-    next.templateId = Number.isInteger(templateId) ? templateId : null;
+    next.templateId = Number.isInteger(templateId) && templateId > 0 ? templateId : null;
     next.messageText = null;
   } else {
     next.templateId = null;
@@ -151,6 +165,7 @@ function applyTrigger(automation: Automation, trigger: string): void {
   } else if (trigger === "booking") automation.triggerEvents = ["classRosterBooking.created"];
   else if (trigger === "classpass") automation.triggerEvents = ["client.created", "classRosterBooking.created"];
   else if (trigger === "daily") automation.triggerEvents = ["cron"];
+  else if (trigger === "lead") automation.triggerEvents = ["lead.created"];
   else automation.triggerEvents = ["client.created"];
 }
 
@@ -171,6 +186,20 @@ function applyDelay(automation: Automation, delay: string, days: number): string
   automation.triggerEvents = ["cron"];
   if (delay === "after-created") {
     automation.timingKind = "delay_days";
+    automation.scheduleOnEvents = ["client.created"];
+  } else if (delay === "after-lead") {
+    automation.timingKind = "delay_days";
+    automation.scheduleOnEvents = ["lead.created"];
+  } else if (delay === "since-last-visit") {
+    automation.timingKind = "days_since_last_visit";
+    automation.scheduleOnEvents = ["classRosterBookingStatus.updated"];
+  } else if (delay === "birthday") {
+    automation.timingKind = "birthday_day";
+    automation.timingOffsetDays = 0;
+    automation.scheduleOnEvents = ["client.created"];
+  } else if (delay === "birthday-month") {
+    automation.timingKind = "birthday_month_start";
+    automation.timingOffsetDays = 0;
     automation.scheduleOnEvents = ["client.created"];
   } else if (delay === "before-expiry") {
     automation.timingKind = "days_before_expiry";

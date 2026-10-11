@@ -6,6 +6,7 @@ export type TwilioConnection = {
   fromMode?: "number" | "name";
 };
 
+// Outbound texts only. The number's incoming-message webhook belongs to Chatwoot.
 export class TwilioClient {
   constructor(
     private readonly connection: TwilioConnection,

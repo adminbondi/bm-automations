@@ -11,6 +11,7 @@ Mindbody webhooks and the Sydney morning cron decide a send from the event paylo
 - `DRY_RUN=true`, `X-Dry-Run: true` on a signed webhook, and `POST /admin/dry-run` return the plan and do not call listmonk or Twilio. The header and the admin preview also skip job and message-id writes.
 - SMS quiet hours default to 20:00–09:00 Australia/Sydney (end exclusive, so 09:00 is allowed). The default action holds the text and sends after quiet hours. Settings can switch that to skip. The test-text endpoint always requires an allowlisted number, including when dev mode is off.
 - Texts send from the Twilio number unless Settings chooses a sender name. An optional "Reply STOP" footer is off until an owner turns it on.
+- Outbound texts use `POST /Messages.json` only. The Twilio number's incoming-message webhook belongs to Chatwoot. This worker leaves the number and that webhook unchanged.
 - Do not deploy this worker or register Mindbody webhooks until owners turn dev mode off on purpose. Amazon SES for listmonk is still in sandbox.
 
 ## Mindbody call budget

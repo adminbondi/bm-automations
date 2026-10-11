@@ -1,0 +1,18 @@
+# Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
+# DEV_MODE stays true until an owner is ready to message real clients.
+# Empty values keep the worker from calling live APIs.
+
+MINDBODY_API_KEY=
+MINDBODY_STAFF_USERNAME=
+MINDBODY_STAFF_PASSWORD=
+MINDBODY_WEBHOOK_SIGNATURE_KEY=
+LISTMONK_API_USER=
+LISTMONK_API_TOKEN=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SESSION_SECRET=
+ADMIN_EMAILS=
+SETTINGS_ENCRYPTION_KEY=
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+SMS_ALLOWLIST=

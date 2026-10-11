@@ -1,0 +1,68 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bm-automations",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  },
+  // 22:00 UTC is 09:00 Australia/Sydney during daylight saving (AEDT, UTC+11).
+  // 23:00 UTC is 09:00 during standard time (AEST, UTC+10).
+  // The handler runs the job only when the Sydney hour is SYDNEY_SEND_HOUR.
+  "triggers": {
+    "crons": ["0 22 * * *", "0 23 * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bm-automations",
+      // Replace this placeholder after `wrangler d1 create bm-automations`.
+      // Local dev and tests do not need a remote database.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "DEV_MODE": "true",
+    "DRY_RUN": "false",
+    "SEND_ALLOWLIST": "bondi@balancemoves.com.au",
+    "SMS_ALLOWLIST": "",
+    "MINDBODY_SITE_ID": "9853",
+    "LISTMONK_BASE_URL": "https://campaigns.balancemoves.com.au",
+    "LISTMONK_LIST_ID": "",
+    "LISTMONK_SUPPRESSED_LIST_ID": "",
+    "SYDNEY_SEND_HOUR": "9",
+    "ADMIN_EMAILS": "",
+    "DEFAULT_FROM_EMAIL": "",
+    "SMS_QUIET_START": "20:00",
+    "SMS_QUIET_END": "09:00",
+    "STUDIO_NAME": "Balance Moves",
+    "TWILIO_FROM_NUMBER": "",
+    "TWILIO_SENDER_NAME": ""
+  },
+  "secrets": {
+    "required": [
+      "MINDBODY_API_KEY",
+      "MINDBODY_STAFF_USERNAME",
+      "MINDBODY_STAFF_PASSWORD",
+      "MINDBODY_WEBHOOK_SIGNATURE_KEY",
+      "LISTMONK_API_USER",
+      "LISTMONK_API_TOKEN",
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET",
+      "SESSION_SECRET",
+      "SETTINGS_ENCRYPTION_KEY",
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN"
+    ]
+  }
+}

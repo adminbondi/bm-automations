@@ -96,7 +96,7 @@
         "LISTMONK_SUPPRESSED_LIST_ID": "",
         "SYDNEY_SEND_HOUR": "9",
         "ADMIN_EMAILS": "admin@balancemoves.com.au",
-        "DEFAULT_FROM_EMAIL": "",
+        "DEFAULT_FROM_EMAIL": "bondi@balancemoves.com.au",
         "SMS_QUIET_START": "20:00",
         "SMS_QUIET_END": "09:00",
         "STUDIO_NAME": "Balance Moves",

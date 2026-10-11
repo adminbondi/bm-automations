@@ -102,36 +102,13 @@ Emails use listmonk templates 5–13. SMS rows store message text and a null tem
 
 `[First name]` and `[Studio]` are filled in at send time. The studio name defaults to Balance Moves. A missing first name becomes `there`.
 
-## Deploy and webhook steps
+## Deploy
 
-Do not run these until dev mode, allowlists, and the open questions below are settled.
+Dev deploy is `docs/dev-deploy.md`. `./scripts/deploy.sh dev` runs the test suite, the allowlist check, and `wrangler deploy --env dev`, then fails if any automation is enabled on `bm-automations-dev`. Any other argument is refused. The script does not publish the top-level Worker `bm-automations`.
 
-```bash
-npx wrangler d1 create bm-automations
-```
+The dev D1 database already exists: `bm-automations-dev`, id `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`. Do not create another one. A push to `main` should run `npm run deploy:dev` through Cloudflare Workers Builds. `.github/workflows/ci.yml` runs the same tests and the allowlist check, and it does not deploy.
 
-Put the returned id in `wrangler.jsonc` (`database_id`), then:
-
-```bash
-npx wrangler d1 migrations apply bm-automations --remote
-npx wrangler secret put MINDBODY_API_KEY
-npx wrangler secret put MINDBODY_STAFF_USERNAME
-npx wrangler secret put MINDBODY_STAFF_PASSWORD
-npx wrangler secret put MINDBODY_WEBHOOK_SIGNATURE_KEY
-npx wrangler secret put LISTMONK_API_USER
-npx wrangler secret put LISTMONK_API_TOKEN
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-npx wrangler secret put SESSION_SECRET
-npx wrangler secret put SETTINGS_ENCRYPTION_KEY
-npx wrangler secret put TWILIO_ACCOUNT_SID
-npx wrangler secret put TWILIO_AUTH_TOKEN
-./scripts/deploy.sh
-```
-
-`scripts/deploy.sh` runs `npm test` and `npm run typecheck` first. If either fails, wrangler does not deploy. The same checks run in `.github/workflows/ci.yml` on push and pull request.
-
-`ADMIN_EMAILS` is a var. Set it to the owner addresses before deploy, or staff cannot sign in. Google's redirect URI is `https://<worker-host>/auth/google/callback`.
+`LEAD_WEBHOOK_SECRET` is optional. Without it, `POST /webhooks/lead` returns 401. `ADMIN_EMAILS` on `env.dev` is `admin@balancemoves.com.au`. Google's redirect URI for that Worker is `https://bm-automations-dev.plain-bush-daad.workers.dev/auth/google/callback`.
 
 The webhook signing key is returned only when the Mindbody subscription is created. Subscribe only when ready:
 

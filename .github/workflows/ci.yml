@@ -1,3 +1,6 @@
+# Tests and the dev allowlist check. This workflow does not deploy.
+# A push to main deploys bm-automations-dev from .github/workflows/deploy-dev.yml.
+# See docs/dev-deploy.md.
 name: ci
 
 on:
@@ -16,3 +19,4 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
+      - run: npm run check:dev

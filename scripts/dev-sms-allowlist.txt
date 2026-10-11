@@ -1,0 +1,3 @@
+# Test handsets that dev SMS may dial. One E.164 number per line.
+# scripts/check-dev-config.mjs requires env.dev SMS_ALLOWLIST to match this file.
+# An empty list means dev sends no SMS. Do not add the studio number +61424133544.

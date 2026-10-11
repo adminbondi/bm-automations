@@ -42,7 +42,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 1,
     key: "lead-immediate",
-    name: "Lead: Leads followup - immediate",
+    name: "Lead welcome",
     templateId: 5,
     triggerEvents: ["client.created"],
     scheduleOnEvents: [],
@@ -60,7 +60,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 2,
     key: "lead-day-60",
-    name: "Lead: Leads followup - day 60",
+    name: "Lead day 60",
     templateId: 6,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["client.created"],
@@ -84,7 +84,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 3,
     key: "trial-purchased",
-    name: "Trial: New client redeemed or purchased their Trial",
+    name: "Trial welcome",
     templateId: 7,
     triggerEvents: ["clientSale.created"],
     scheduleOnEvents: [],
@@ -103,7 +103,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 4,
     key: "trial-third-class",
-    name: "Trial: Client took their 3rd class on their Trial",
+    name: "Trial 3rd class",
     templateId: 8,
     triggerEvents: ["classRosterBookingStatus.updated"],
     scheduleOnEvents: [],
@@ -130,7 +130,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 5,
     key: "trial-expiring-3-days",
-    name: "Trial: Trial expiring in 3 days",
+    name: "Trial expiring 3 days",
     templateId: 9,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["clientSale.created"],
@@ -158,7 +158,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 6,
     key: "trial-expiring-1-day-one-visit",
-    name: "Trial: Expiring in 1 day, client took only 1 session",
+    name: "Trial expiring 1 day (1 visit)",
     templateId: 10,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["clientSale.created"],
@@ -184,7 +184,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 7,
     key: "membership-purchase",
-    name: "Member: Membership purchase",
+    name: "Membership welcome",
     templateId: 11,
     triggerEvents: ["clientContract.created"],
     scheduleOnEvents: [],
@@ -203,7 +203,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 8,
     key: "member-google-review",
-    name: "Member: Google review request (email)",
+    name: "Google review (email)",
     templateId: 12,
     triggerEvents: ["classRosterBookingStatus.updated"],
     scheduleOnEvents: [],
@@ -227,7 +227,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   email({
     id: 9,
     key: "classpass-welcome",
-    name: "ClassPass: Welcome",
+    name: "ClassPass welcome",
     templateId: 13,
     triggerEvents: ["client.created", "classRosterBooking.created"],
     scheduleOnEvents: [],
@@ -247,7 +247,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   sms({
     id: 10,
     key: "trial-day-7-no-booking",
-    name: "Trial: Day 7, no class booked",
+    name: "Trial day 7 – no class booked",
     messageText: SMS_DAY_7,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["clientSale.created"],
@@ -270,7 +270,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   sms({
     id: 11,
     key: "trial-google-review-text",
-    name: "Trial: Google review text",
+    name: "Google review (text)",
     messageText: SMS_GOOGLE_REVIEW,
     triggerEvents: ["classRosterBookingStatus.updated"],
     scheduleOnEvents: [],
@@ -295,7 +295,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   sms({
     id: 12,
     key: "trial-expiring-1-day-text",
-    name: "Trial: Expiring in 1 day (text)",
+    name: "Trial expiring 1 day (text)",
     messageText: SMS_EXPIRING_1_DAY,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["clientSale.created"],
@@ -320,7 +320,7 @@ export const SEED_AUTOMATIONS: Automation[] = [
   sms({
     id: 13,
     key: "trial-followup-10-day",
-    name: "Trial: 10-day follow-up",
+    name: "Trial 10-day follow-up (text)",
     messageText: SMS_FOLLOWUP_10,
     triggerEvents: ["cron"],
     scheduleOnEvents: ["clientSale.created"],

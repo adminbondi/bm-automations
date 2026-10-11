@@ -29,6 +29,20 @@ export function sydneyParts(date: Date): SydneyParts {
   };
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+export function formatSydney(date: Date): string {
+  const parts = sydneyParts(date);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Australia/Sydney", weekday: "short" }).format(date);
+  const hour12 = parts.hour % 12 || 12;
+  const suffix = parts.hour < 12 ? "am" : "pm";
+  const minute = String(parts.minute).padStart(2, "0");
+  const month = MONTHS[parts.month - 1] ?? "";
+  const dayName = WEEKDAYS.find((name) => weekday.startsWith(name)) ?? weekday;
+  return `${dayName} ${parts.day} ${month}, ${hour12}:${minute} ${suffix}`;
+}
+
 export function sydneyDate(date: Date): string {
   const parts = sydneyParts(date);
   const month = String(parts.month).padStart(2, "0");

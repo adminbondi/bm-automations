@@ -31,6 +31,7 @@ export type PlanFacts = {
   alreadySentKeys: Set<string>;
   listmonkBaseUrl: string;
   withinQuietHours: boolean;
+  quietAction?: "hold" | "skip";
 };
 
 export type GatedPlan = {
@@ -153,6 +154,7 @@ function gatePlan(
     alreadySent: facts.alreadySentKeys.has(key),
     suppressed: recipient === "copy" ? false : facts.suppressed,
     withinQuietHours: facts.withinQuietHours,
+    quietAction: facts.quietAction,
   });
   const data = automation.channel === "email"
     ? withUnsubscribe(decision.data, unsubscribeUrl(facts.listmonkBaseUrl, null))

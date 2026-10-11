@@ -3,6 +3,7 @@ export type TwilioConnection = {
   authToken: string;
   fromNumber: string;
   senderName: string;
+  fromMode?: "number" | "name";
 };
 
 export class TwilioClient {
@@ -12,7 +13,8 @@ export class TwilioClient {
   ) {}
 
   fromAddress(): string {
-    return this.connection.fromNumber || this.connection.senderName;
+    if (this.connection.fromMode === "name") return this.connection.senderName;
+    return this.connection.fromNumber;
   }
 
   async sendSms(input: { to: string; body: string }): Promise<void> {

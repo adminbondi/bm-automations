@@ -2,14 +2,15 @@
 
 Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the nine LoyalSnap emails and adds the four LoyalSnap trial texts as SMS. Rules live in D1. Nothing sends until an owner enables that row.
 
-Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. There is no automation admin UI yet. Design approval is still pending. Google sign-in only protects the JSON API.
+Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. Signed-in owners manage the rows at `/automations`, the send log at `/log`, and connections at `/settings`. Tasks links out to the task dashboard.
 
 ## Safety
 
 - `DEV_MODE` defaults to `true`. A send whose address is not on `SEND_ALLOWLIST` (email) or `SMS_ALLOWLIST` / phone entries in `SEND_ALLOWLIST` is logged and skipped.
 - Every seeded automation has `enabled = 0`. The worker does not send until that row is turned on.
 - `DRY_RUN=true`, `X-Dry-Run: true` on a signed webhook, and `POST /admin/dry-run` return the plan and do not call listmonk or Twilio. The header and the admin preview also skip job and message-id writes.
-- SMS is held during quiet hours (default 20:00–09:00 Australia/Sydney, end exclusive, so 09:00 is allowed). The test-text endpoint always requires an allowlisted number, including when dev mode is off.
+- SMS quiet hours default to 20:00–09:00 Australia/Sydney (end exclusive, so 09:00 is allowed). The default action holds the text and sends after quiet hours. Settings can switch that to skip. The test-text endpoint always requires an allowlisted number, including when dev mode is off.
+- Texts send from the Twilio number unless Settings chooses a sender name. An optional "Reply STOP" footer is off until an owner turns it on.
 - Do not deploy this worker or register Mindbody webhooks until owners turn dev mode off on purpose. Amazon SES for listmonk is still in sandbox.
 
 ## Run locally
@@ -21,7 +22,7 @@ npm test
 npm run dev
 ```
 
-[Health check](http://127.0.0.1:8791/health) answers `{ "ok": true, "devMode": true }`. `GET /` is the Google sign-in page. `GET /admin/settings` without a session returns `401`.
+[Health check](http://127.0.0.1:8791/health) answers `{ "ok": true, "devMode": true }`. `GET /` is the Google sign-in page, and a signed-in session opens [Automations](http://127.0.0.1:8791/automations). `GET /admin/settings` without a session returns `401`.
 
 `npm run typecheck` generates nothing by itself. `npm run cf-typegen` refreshes `worker-configuration.d.ts` after a binding change.
 
@@ -46,7 +47,9 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 
 PATCH settings omit a field to keep it. Send an empty string to clear it. Stored secrets are AES-GCM ciphertext. The key is the Worker secret `SETTINGS_ENCRYPTION_KEY` (SHA-256, then AES-GCM). The API returns `connected: true/false` and never the secret or the ciphertext.
 
-Listmonk settings: base URL, API user, API token. Twilio settings: account SID, auth token, from number or alphanumeric sender name. Also stored: default from email, SMS quiet hours. Mindbody keys stay Worker secrets. List ids stay vars (`LISTMONK_LIST_ID`, `LISTMONK_SUPPRESSED_LIST_ID`). If a setting row is missing, the matching env value is the fallback.
+The same controls are on the signed-in pages: `/automations`, `/automations/:id` (add `#email` to open the email message box), `/log`, `/settings`.
+
+Listmonk settings: base URL, API user (shown again after save), API token (write-only). Twilio settings: account SID, auth token, sending number, sender name, and whether texts use the number or the name. Also stored: default from name, from address, and reply-to; SMS quiet hours and hold-or-skip; the Reply STOP footer. Mindbody keys stay Worker secrets. List ids stay vars (`LISTMONK_LIST_ID`, `LISTMONK_SUPPRESSED_LIST_ID`). If a setting row is missing, the matching env value is the fallback. From name defaults to Balance Moves, from address to hello@balancemoves.com.au, and reply-to to bondi@balancemoves.com.au until a row is saved. Email subjects for templates 5–13 are displayed from the worker, not fetched from listmonk.
 
 ## Seeded rows
 
@@ -133,7 +136,7 @@ Listmonk sends `Authorization: token <user>:<token>`. Transactional templates 5�
 - The 50% off first 4 weeks line is inside template 8. This worker does not change template HTML.
 - Template images still point at the listmonk and LoyalSnap CDNs.
 - Send time is 09:00 Australia/Sydney. LoyalSnap does not state an hour. Two UTC crons (`0 22 * * *` and `0 23 * * *`) cover AEDT and AEST. The handler runs only when the Sydney hour is 9, so daylight saving does not double-send. 2026 DST ends on 5 April and starts on 4 October. 09:00 exists on both transition days.
-- Quiet hours default to 20:00–09:00 Australia/Sydney. Owners can change them in settings. Confirm the window and whether the sender is a mobile number or an alphanumeric sender id (Australia may require registration).
+- Quiet hours are confirmed as 20:00–09:00 Australia/Sydney, and texts send from the Twilio number. A sender name remains available in Settings if registration is sorted out later.
 - Email 6 is exactly one visit and skips memberships. SMS 12 is at least one visit and does not skip memberships, because the LoyalSnap text description did not list those skips.
 - SMS 13 is the 2-week pass only, 10 days after expiry, and does not skip memberships.
 - A missed exact expiry day is `missed_window` and is not retried, except when a send was already due and then blocked by dev mode, a disabled row, dry run, or quiet hours. That pending job can still send on a later cron.

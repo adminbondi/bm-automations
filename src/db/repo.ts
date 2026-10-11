@@ -377,6 +377,20 @@ export class Repo {
     }
   }
 
+  async sendStats(sinceIso: string): Promise<Map<number, { lastSent: string | null; sends7d: number }>> {
+    const rows = await this.db
+      .prepare(
+        `SELECT automation_id AS automationId, MAX(created_at) AS lastSent,
+                SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS sends7d
+         FROM send_log WHERE status = 'sent' GROUP BY automation_id`,
+      )
+      .bind(sinceIso)
+      .all<{ automationId: number; lastSent: string | null; sends7d: number | null }>();
+    const stats = new Map<number, { lastSent: string | null; sends7d: number }>();
+    for (const row of rows) stats.set(row.automationId, { lastSent: row.lastSent, sends7d: Number(row.sends7d ?? 0) });
+    return stats;
+  }
+
   async listSendLog(limit: number, automationId: number | null): Promise<SendLogRow[]> {
     const capped = Math.min(Math.max(limit, 1), 200);
     const rows = automationId === null

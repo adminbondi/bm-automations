@@ -14,6 +14,13 @@ export const SETTING_KEYS = {
   defaultFromEmail: "default_from_email",
   smsQuietStart: "sms_quiet_start",
   smsQuietEnd: "sms_quiet_end",
+  twilioFromMode: "twilio_from_mode",
+  appendReplyStop: "append_reply_stop",
+  defaultFromName: "default_from_name",
+  defaultReplyTo: "default_reply_to",
+  quietAction: "quiet_action",
+  listmonkLastChecked: "listmonk_last_checked",
+  listmonkTemplateCount: "listmonk_template_count",
 } as const;
 
 const SECRET_KEYS = new Set<string>([
@@ -23,17 +30,40 @@ const SECRET_KEYS = new Set<string>([
   SETTING_KEYS.twilioAuthToken,
 ]);
 
+export type FromMode = "number" | "name";
+export type QuietAction = "hold" | "skip";
+
 export type PublicSettings = {
-  listmonk: { baseUrl: string; connected: boolean };
-  twilio: { connected: boolean; fromNumber: string; senderName: string };
+  listmonk: {
+    baseUrl: string;
+    apiUser: string;
+    connected: boolean;
+    lastCheckedAt: string | null;
+    templateCount: number | null;
+  };
+  twilio: { connected: boolean; fromNumber: string; senderName: string; fromMode: FromMode };
   defaultFromEmail: string;
+  defaultFromName: string;
+  defaultReplyTo: string;
+  appendReplyStop: boolean;
+  quietAction: QuietAction;
   smsQuietHours: { start: string; end: string; timeZone: "Australia/Sydney" };
 };
 
 export type SettingsPatch = {
   listmonk?: { baseUrl?: string; apiUser?: string; apiToken?: string };
-  twilio?: { accountSid?: string; authToken?: string; fromNumber?: string; senderName?: string };
+  twilio?: {
+    accountSid?: string;
+    authToken?: string;
+    fromNumber?: string;
+    senderName?: string;
+    fromMode?: FromMode;
+  };
   defaultFromEmail?: string;
+  defaultFromName?: string;
+  defaultReplyTo?: string;
+  appendReplyStop?: boolean;
+  quietAction?: QuietAction;
   smsQuietHours?: { start?: string; end?: string };
 };
 
@@ -43,16 +73,28 @@ export type Connections = {
   listmonkApiToken: string;
   listmonkListId: string;
   listmonkSuppressedListId: string;
+  listmonkLastChecked: string | null;
+  listmonkTemplateCount: number | null;
   defaultFromEmail: string;
+  defaultFromName: string;
+  defaultReplyTo: string;
   twilioAccountSid: string;
   twilioAuthToken: string;
   twilioFromNumber: string;
   twilioSenderName: string;
+  twilioFromMode: FromMode;
+  appendReplyStop: boolean;
+  quietAction: QuietAction;
   quietStart: string;
   quietEnd: string;
 };
 
 type Stored = Map<string, string>;
+
+export async function noteListmonkCheck(repo: Repo, checkedAt: string, templateCount: number | null): Promise<void> {
+  await repo.putSetting(SETTING_KEYS.listmonkLastChecked, checkedAt, false);
+  if (templateCount !== null) await repo.putSetting(SETTING_KEYS.listmonkTemplateCount, String(templateCount), false);
+}
 
 export async function readPublicSettings(repo: Repo, config: RuntimeConfig): Promise<PublicSettings> {
   const connections = await resolveConnections(repo, config);
@@ -73,8 +115,15 @@ export async function writeSettings(repo: Repo, config: RuntimeConfig, patch: Se
     writes.push({ key: SETTING_KEYS.twilioAuthToken, value: patch.twilio.authToken });
     writes.push({ key: SETTING_KEYS.twilioFromNumber, value: clean(patch.twilio.fromNumber) });
     writes.push({ key: SETTING_KEYS.twilioSenderName, value: clean(patch.twilio.senderName) });
+    if (patch.twilio.fromMode) writes.push({ key: SETTING_KEYS.twilioFromMode, value: patch.twilio.fromMode });
   }
   if ("defaultFromEmail" in patch) writes.push({ key: SETTING_KEYS.defaultFromEmail, value: clean(patch.defaultFromEmail) });
+  if ("defaultFromName" in patch) writes.push({ key: SETTING_KEYS.defaultFromName, value: clean(patch.defaultFromName) });
+  if ("defaultReplyTo" in patch) writes.push({ key: SETTING_KEYS.defaultReplyTo, value: clean(patch.defaultReplyTo) });
+  if ("appendReplyStop" in patch) {
+    writes.push({ key: SETTING_KEYS.appendReplyStop, value: patch.appendReplyStop ? "1" : "0" });
+  }
+  if (patch.quietAction) writes.push({ key: SETTING_KEYS.quietAction, value: patch.quietAction });
   if (patch.smsQuietHours) {
     writes.push({ key: SETTING_KEYS.smsQuietStart, value: clean(patch.smsQuietHours.start) });
     writes.push({ key: SETTING_KEYS.smsQuietEnd, value: clean(patch.smsQuietHours.end) });
@@ -103,11 +152,18 @@ export async function resolveConnections(repo: Repo, config: RuntimeConfig): Pro
     listmonkApiToken: secret(stored, SETTING_KEYS.listmonkApiToken, config.listmonkApiToken),
     listmonkListId: config.listmonkListId,
     listmonkSuppressedListId: config.listmonkSuppressedListId,
-    defaultFromEmail: plain(stored, SETTING_KEYS.defaultFromEmail, config.defaultFromEmail),
+    listmonkLastChecked: stored.get(SETTING_KEYS.listmonkLastChecked) || null,
+    listmonkTemplateCount: countOrNull(stored.get(SETTING_KEYS.listmonkTemplateCount)),
+    defaultFromEmail: plain(stored, SETTING_KEYS.defaultFromEmail, config.defaultFromEmail || "hello@balancemoves.com.au"),
+    defaultFromName: plain(stored, SETTING_KEYS.defaultFromName, "Balance Moves"),
+    defaultReplyTo: plain(stored, SETTING_KEYS.defaultReplyTo, "bondi@balancemoves.com.au"),
     twilioAccountSid: secret(stored, SETTING_KEYS.twilioAccountSid, config.twilioAccountSid),
     twilioAuthToken: secret(stored, SETTING_KEYS.twilioAuthToken, config.twilioAuthToken),
     twilioFromNumber: plain(stored, SETTING_KEYS.twilioFromNumber, config.twilioFromNumber),
     twilioSenderName: plain(stored, SETTING_KEYS.twilioSenderName, config.twilioSenderName),
+    twilioFromMode: plain(stored, SETTING_KEYS.twilioFromMode, "number") === "name" ? "name" : "number",
+    appendReplyStop: plain(stored, SETTING_KEYS.appendReplyStop, "0") === "1",
+    quietAction: plain(stored, SETTING_KEYS.quietAction, "hold") === "skip" ? "skip" : "hold",
     quietStart: parseClock(quietStart) === null ? config.smsQuietStart : quietStart,
     quietEnd: parseClock(quietEnd) === null ? config.smsQuietEnd : quietEnd,
   };
@@ -117,14 +173,22 @@ export function toPublic(connections: Connections): PublicSettings {
   return {
     listmonk: {
       baseUrl: connections.listmonkBaseUrl,
+      apiUser: connections.listmonkApiUser,
       connected: Boolean(connections.listmonkApiUser && connections.listmonkApiToken),
+      lastCheckedAt: connections.listmonkLastChecked,
+      templateCount: connections.listmonkTemplateCount,
     },
     twilio: {
       connected: Boolean(connections.twilioAccountSid && connections.twilioAuthToken),
       fromNumber: connections.twilioFromNumber,
       senderName: connections.twilioSenderName,
+      fromMode: connections.twilioFromMode,
     },
     defaultFromEmail: connections.defaultFromEmail,
+    defaultFromName: connections.defaultFromName,
+    defaultReplyTo: connections.defaultReplyTo,
+    appendReplyStop: connections.appendReplyStop,
+    quietAction: connections.quietAction,
     smsQuietHours: {
       start: connections.quietStart,
       end: connections.quietEnd,
@@ -159,6 +223,12 @@ function secret(stored: Stored, key: string, fallback: string): string {
 function clean(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   return value.trim();
+}
+
+function countOrNull(value: string | undefined): number | null {
+  if (!value) return null;
+  const count = Number(value);
+  return Number.isInteger(count) && count >= 0 ? count : null;
 }
 
 function validateQuiet(quiet: SettingsPatch["smsQuietHours"]): string | null {

@@ -10,6 +10,8 @@ describe("seeded automations", () => {
     const repo = testRepo();
     const rows = await repo.listAutomations();
     expect(rows.map((row) => row.key)).toEqual(SEED_AUTOMATIONS.map((row) => row.key));
+    expect(rows.map((row) => row.name)).toEqual(SEED_AUTOMATIONS.map((row) => row.name));
+    expect(rows.find((row) => row.id === 1)?.name).toBe("Lead welcome");
     expect(rows.every((row) => row.enabled === false)).toBe(true);
     expect(rows.find((row) => row.id === 10)?.messageText).toBe(SMS_DAY_7);
     expect(rows.find((row) => row.id === 11)?.messageText).toBe(SMS_GOOGLE_REVIEW);

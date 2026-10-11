@@ -13,6 +13,7 @@ export type GateInput = {
   alreadySent: boolean;
   suppressed: boolean;
   withinQuietHours: boolean;
+  quietAction?: "hold" | "skip";
 };
 
 export type GateResult =
@@ -35,7 +36,7 @@ export function gateSend(input: GateInput): GateResult {
     : !input.devMode || input.emailAllowlist.includes(email ?? "");
   if (!allowed) return { outcome: "skip", ...base, reason: "dev_allowlist", terminal: false };
   if (input.channel === "sms" && input.withinQuietHours) {
-    return { outcome: "skip", ...base, reason: "quiet_hours", terminal: false };
+    return { outcome: "skip", ...base, reason: "quiet_hours", terminal: input.quietAction === "skip" };
   }
   if (input.dryRun) return { outcome: "dry_run", ...base, reason: "dry_run", terminal: false };
   if (input.channel === "sms" && phone) {

@@ -42,6 +42,9 @@ describe("dev allowlist", () => {
     expect(held.reason).toBe("quiet_hours");
     expect(held.terminal).toBe(false);
     expect(held.twilioCall).toBe(false);
+    const skipped = gateSend({ ...base, channel: "sms", email: null, phone: "+61400000000", withinQuietHours: true, quietAction: "skip" });
+    expect(skipped.reason).toBe("quiet_hours");
+    expect(skipped.terminal).toBe(true);
   });
 
   it("does not call a provider when the automation is off", () => {

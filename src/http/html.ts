@@ -8,22 +8,9 @@ export function signInPage(options: { configured: boolean; error?: string }): st
     `<main class="card">
       <p class="eyebrow">Balance Moves</p>
       <h1>Automations</h1>
-      <p>Sign in with a Google account on the admin allowlist. Automation screens are waiting on design approval. The API stays at <code>/admin</code>.</p>
+      <p>Sign in with a Google account on the admin allowlist to manage automations.</p>
       ${error}
       ${action}
-    </main>`,
-  );
-}
-
-export function signedInPage(email: string): string {
-  return layout(
-    "Balance Moves automations",
-    `<main class="card">
-      <p class="eyebrow">Balance Moves</p>
-      <h1>Signed in</h1>
-      <p>You are signed in as ${escapeHtml(email)}. Automation screens are waiting on design approval, so this page does not list or edit them.</p>
-      <p class="muted">JSON lives under <code>/admin</code>.</p>
-      <form method="post" action="/logout"><button type="submit">Sign out</button></form>
     </main>`,
   );
 }

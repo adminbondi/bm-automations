@@ -46,6 +46,7 @@ export async function runScheduled(env: Env, deps: AppDeps): Promise<{ ran: bool
         todaySydney: today,
         jobId: job.id,
         payload: job.payload,
+        appendReplyStop: loaded.connections.appendReplyStop,
       });
       processed += 1;
     } catch (error) {

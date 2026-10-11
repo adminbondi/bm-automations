@@ -21,6 +21,18 @@ export class ListmonkClient {
     private readonly fetchImpl: typeof fetch,
   ) {}
 
+  async templateTotal(): Promise<number | null> {
+    try {
+      if (!this.connection.apiUser || !this.connection.apiToken || !this.connection.baseUrl) return null;
+      const response = await this.fetchImpl(`${this.connection.baseUrl}/api/templates?page=1&per_page=1`, { headers: this.headers() });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { data?: { total?: unknown } };
+      return typeof body.data?.total === "number" ? body.data.total : null;
+    } catch {
+      return null;
+    }
+  }
+
   async checkAuth(): Promise<{ ok: boolean; status: number }> {
     if (!this.connection.apiUser || !this.connection.apiToken || !this.connection.baseUrl) return { ok: false, status: 0 };
     const response = await this.fetchImpl(`${this.connection.baseUrl}/api/subscribers?page=1&per_page=1`, { headers: this.headers() });

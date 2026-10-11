@@ -6,10 +6,11 @@ import { handleWebhook, previewBody, publicPlan } from "../pipeline/webhook";
 import { runScheduled } from "../pipeline/cron";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
-import { readPublicSettings, writeSettings, type SettingsPatch } from "../settings/service";
+import { noteListmonkCheck, readPublicSettings, writeSettings, type SettingsPatch } from "../settings/service";
+import { withReplyStop } from "../sms";
 import { automationFromBody, mergeAutomation } from "./automation-body";
-import { finishGoogleLogin, html, startGoogleLogin } from "./google";
-import { signedInPage, signInPage } from "./html";
+import { finishGoogleLogin, startGoogleLogin } from "./google";
+import { handleAdminPages } from "./pages-route";
 
 const AUTOMATION = /^\/admin\/automations\/(\d+)$/;
 const TOGGLE = /^\/admin\/automations\/(\d+)\/toggle$/;
@@ -45,18 +46,12 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
   if (url.pathname === "/logout" && request.method === "POST") {
     return new Response(null, { status: 302, headers: { Location: "/", "Set-Cookie": clearSessionCookie() } });
   }
-  if (url.pathname.startsWith("/admin")) return admin(request, env, deps, config, url);
-  if (url.pathname === "/" && request.method === "GET") return home(request, config);
-  return new Response("not found", { status: 404 });
-}
-
-async function home(request: Request, config: RuntimeConfig): Promise<Response> {
-  const value = await readSession(config.sessionSecret, request.headers.get("Cookie"));
-  if (!value || !isAdminEmail(value.email, config.adminEmails)) {
-    const error = value ? "This Google account is not on the admin list." : undefined;
-    return html(signInPage({ configured: Boolean(config.googleClientId && config.googleClientSecret && config.sessionSecret), error }));
+  if (!url.pathname.startsWith("/admin")) {
+    const page = await handleAdminPages(request, env, deps, config, url);
+    if (page) return page;
   }
-  return html(signedInPage(value.email));
+  if (url.pathname.startsWith("/admin")) return admin(request, env, deps, config, url);
+  return new Response("not found", { status: 404 });
 }
 
 async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeConfig, url: URL): Promise<Response> {
@@ -118,6 +113,7 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
     }
     if (url.pathname === "/admin/settings/test/listmonk" && request.method === "POST") {
       const result = await loaded.listmonk.checkAuth();
+      if (result.ok) await noteListmonkCheck(loaded.repo, loaded.now.toISOString(), await loaded.listmonk.templateTotal());
       return Response.json({ ok: result.ok, status: result.status });
     }
     if (url.pathname === "/admin/settings/test/twilio" && request.method === "POST") {
@@ -129,7 +125,10 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
       if (!loaded.connections.twilioAccountSid || !loaded.connections.twilioAuthToken || !loaded.twilio.fromAddress()) {
         return Response.json({ error: "twilio_not_connected" }, { status: 400 });
       }
-      await loaded.twilio.sendSms({ to, body: "Balance Moves automations test. No client was contacted." });
+      await loaded.twilio.sendSms({
+        to,
+        body: withReplyStop("Balance Moves automations test. No client was contacted.", loaded.connections.appendReplyStop),
+      });
       return Response.json({ ok: true });
     }
     if (url.pathname === "/admin/dry-run" && request.method === "POST") {

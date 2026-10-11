@@ -26,6 +26,10 @@ describe("settings encryption", () => {
     expect(pub.listmonk.connected).toBe(true);
     expect(pub.twilio.connected).toBe(true);
     expect(pub.twilio.fromNumber).toBe("+61400000000");
+    expect(pub.twilio.fromMode).toBe("number");
+    expect(pub.appendReplyStop).toBe(false);
+    expect(pub.quietAction).toBe("hold");
+    expect(pub.listmonk.apiUser).toBe("api-user");
     expect(body).not.toContain("super-secret-token");
     expect(body).not.toContain("twilio-auth");
     expect(body).not.toContain("AC123secret");

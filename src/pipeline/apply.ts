@@ -3,7 +3,7 @@ import type { JobPayload } from "../automations/types";
 import type { Repo } from "../db/repo";
 import type { ListmonkClient } from "../listmonk/client";
 import { log } from "../log";
-import { renderSms } from "../sms";
+import { renderSms, withReplyStop } from "../sms";
 import type { TwilioClient } from "../twilio/client";
 import type { GatedPlan } from "./plan";
 
@@ -19,6 +19,7 @@ export type ApplyOptions = {
   todaySydney: string;
   jobId?: number;
   payload?: JobPayload;
+  appendReplyStop?: boolean;
 };
 
 export async function applyPlans(plans: GatedPlan[], options: ApplyOptions): Promise<void> {
@@ -166,7 +167,8 @@ async function deliverSms(plan: GatedPlan, options: ApplyOptions, key: string): 
   const template = plan.messageText;
   if (!phone || !template) return "blocked";
   if (await options.repo.hasSent(key)) return "blocked";
-  const body = plan.renderedMessage ?? renderSms(template, options.firstName, options.studioName);
+  const rendered = plan.renderedMessage ?? renderSms(template, options.firstName, options.studioName);
+  const body = withReplyStop(rendered, options.appendReplyStop === true);
   await options.twilio.sendSms({ to: phone, body });
   await options.repo.recordSend({
     dedupeKey: key,

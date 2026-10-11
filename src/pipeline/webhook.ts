@@ -80,6 +80,7 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
         listmonkBaseUrl: loaded.connections.listmonkBaseUrl,
         todaySydney: facts.todaySydney,
         payload: eventPayload(event),
+        appendReplyStop: loaded.connections.appendReplyStop,
       });
       await loaded.repo.recordMessage(event.messageId, event.eventId);
     }

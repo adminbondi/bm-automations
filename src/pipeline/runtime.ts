@@ -49,6 +49,7 @@ export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
       authToken: connections.twilioAuthToken,
       fromNumber: connections.twilioFromNumber,
       senderName: connections.twilioSenderName,
+      fromMode: connections.twilioFromMode,
     },
     deps.fetchImpl,
   );
@@ -144,6 +145,7 @@ export async function factsFromClient(input: {
     alreadySentKeys: await loaded.repo.sentKeys(client.clientId),
     listmonkBaseUrl: loaded.connections.listmonkBaseUrl,
     withinQuietHours: loaded.withinQuietHours,
+    quietAction: loaded.connections.quietAction,
   };
 }
 

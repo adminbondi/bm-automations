@@ -1,7 +1,7 @@
 import { unsubscribeUrl, withUnsubscribe } from "../automations/gate";
 import type { JobPayload } from "../automations/types";
 import type { Repo } from "../db/repo";
-import type { ListmonkClient } from "../listmonk/client";
+import type { ListmonkClient } from "@balancemoves/contacts-core";
 import { log } from "../log";
 import { buildMerge, renderMerge } from "../merge/values";
 import { withReplyStop } from "../sms";

@@ -1,7 +1,7 @@
 import { isAdminEmail, readSession } from "../auth";
 import type { RuntimeConfig } from "../env";
 import { addDays, sydneyDate } from "../time";
-import { normalizePhone } from "../phone";
+import { normalizePhone } from "@balancemoves/contacts-core";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
 import { noteListmonkCheck, readPublicSettings, writeSettings } from "../settings/service";
 import { exampleMerge, renderMerge } from "../merge/values";

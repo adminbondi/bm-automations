@@ -4,7 +4,7 @@ import { createSessionToken } from "../src/auth";
 import { findSeed } from "../src/automations/seed";
 import { editScript } from "../src/http/pages";
 import { createApp } from "../src/index";
-import { ListmonkClient } from "../src/listmonk/client";
+import { CONTACT_FIELDS, ListmonkClient } from "@balancemoves/contacts-core";
 import { MERGE_FIELDS, renderMergeDoc } from "../src/merge/fields";
 import { buildMerge, renderMerge } from "../src/merge/values";
 import { planAutomations, type PlanFacts } from "../src/pipeline/plan";
@@ -63,6 +63,22 @@ describe("merge fields", () => {
     expect(doc).toContain("GET /client/clientservices — ExpirationDate");
     expect(doc).toContain("| gap |");
     expect(MERGE_FIELDS.filter((field) => field.gap)).toHaveLength(12);
+  });
+
+  it("uses the shared contact field list for every stored key", () => {
+    const stored = MERGE_FIELDS.filter((field) => field.key);
+    expect(stored.map((field) => field.key)).toEqual(CONTACT_FIELDS.map((field) => field.key));
+    for (const field of CONTACT_FIELDS) {
+      const row = stored.find((item) => item.key === field.key);
+      expect(row).toMatchObject({
+        type: field.type,
+        mindbody: field.mindbody,
+        optOut: field.optOut,
+        example: field.example,
+        gap: field.gap,
+        attrib: field.key,
+      });
+    }
   });
 
   it("fills Mindbody values and uses fallbacks when they are missing", () => {

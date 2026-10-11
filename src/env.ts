@@ -1,4 +1,4 @@
-import { normalizePhone } from "./phone";
+import { normalizePhone } from "@balancemoves/contacts-core";
 import { parseContactWriteMode, type ContactWriteMode } from "./sync/mode";
 import { DEFAULT_QUIET_END, DEFAULT_QUIET_START } from "./time";
 

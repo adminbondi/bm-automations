@@ -1,6 +1,6 @@
 import { clearSessionCookie, isAdminEmail, readSession } from "../auth";
 import { log } from "../log";
-import { normalizePhone } from "../phone";
+import { normalizePhone } from "@balancemoves/contacts-core";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
 import { handleLeadWebhook, handleWebhook, previewBody, publicPlan } from "../pipeline/webhook";
 import { runScheduled } from "../pipeline/cron";

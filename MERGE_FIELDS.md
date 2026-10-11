@@ -1,6 +1,6 @@
 # Merge fields
 
-One row is one value. The field key is the same name in Chatwoot `custom_attributes` and listmonk `attribs`. Dates are ISO `YYYY-MM-DD`. Phone numbers are E.164. `SYNC_CONTRACT.md` is the spec for writing both systems. This worker does not run that sync.
+One row is one value. The field key is the same name in Chatwoot `custom_attributes` and listmonk `attribs`. Dates are ISO `YYYY-MM-DD`. Phone numbers are E.164. `SYNC_CONTRACT.md` is the spec for writing both systems. This worker does not run that sync. The shared keys, types, Mindbody sources, opt-out rules, and examples come from `@balancemoves/contacts-core`.
 
 LoyalSnap tokens from the automation export and the dashboard scripts share rows when they print the same value. Mapped fields are read from Mindbody on each send and placed in `POST /api/tx` `data`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. The message prints the studio phone as 0424 133 544 and a pass end date as 14 Oct 2026. The stored contact fields are `+61424133544` and `2026-10-14`. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there" in the message. `attribs.first_name` stays the Mindbody value, including blank.
 

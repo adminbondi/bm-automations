@@ -1,3 +1,8 @@
+import { CONTACT_FIELDS, STUDIO_ADDRESS, STUDIO_PHONE_DISPLAY } from "@balancemoves/contacts-core";
+
+export const STUDIO_PHONE = STUDIO_PHONE_DISPLAY;
+export { STUDIO_ADDRESS };
+
 export type MergeField = {
   loyalSnap: string;
   key: string;
@@ -12,218 +17,121 @@ export type MergeField = {
   insert: string;
 };
 
-export const STUDIO_PHONE = "0424 133 544";
-export const STUDIO_ADDRESS = "72A-74 Hall Street, Bondi Beach, NSW, 2026";
+type Presentation = {
+  loyalSnap: string;
+  syntax: string;
+  fallback: string;
+  insert: string;
+};
 
-export const MERGE_FIELDS: MergeField[] = [
-  {
+const PRESENTATION: Record<string, Presentation> = {
+  first_name: {
     loyalSnap: "*|FNAME|*, [First name], @Client's first name",
-    key: "first_name",
-    type: "string",
-    optOut: "—",
-    mindbody: "GET /client/clients — FirstName",
-    attrib: "first_name",
     syntax: "{{ .Subscriber.FirstName }} and {{ .Tx.Data.FirstName }}",
-    example: "Alex",
     fallback: "there",
-    gap: false,
     insert: "[First name]",
   },
-  {
+  last_name: {
     loyalSnap: "[Last name]",
-    key: "last_name",
-    type: "string",
-    optOut: "—",
-    mindbody: "GET /client/clients — LastName",
-    attrib: "last_name",
     syntax: "{{ .Subscriber.LastName }} and {{ .Tx.Data.LastName }}",
-    example: "Nguyen",
     fallback: "",
-    gap: false,
     insert: "[Last name]",
   },
-  {
+  email: {
     loyalSnap: "*|EMAIL|*",
-    key: "email",
-    type: "email",
-    optOut: "—",
-    mindbody: "GET /client/clients — Email",
-    attrib: "email",
     syntax: "{{ .Subscriber.Email }} and {{ .Tx.Data.Email }}",
-    example: "bondi@balancemoves.com.au",
     fallback: "",
-    gap: false,
     insert: "*|EMAIL|*",
   },
-  {
+  phone: {
     loyalSnap: "client mobile (Chatwoot phone_number; not a LoyalSnap token)",
-    key: "phone",
-    type: "phone, E.164",
-    optOut: "—",
-    mindbody: "GET /client/clients — MobilePhone",
-    attrib: "phone",
     syntax: "Chatwoot custom_attributes.phone and {{ .Subscriber.Attribs.phone }}",
-    example: "+61412345678",
     fallback: "",
-    gap: false,
     insert: "",
   },
-  {
+  email_opt_out: {
     loyalSnap: "email opt-out (not a LoyalSnap token)",
-    key: "email_opt_out",
-    type: "boolean",
-    optOut: "true sets listmonk status blocklisted; false sets enabled. Chatwoot custom_attributes.email_opt_out",
-    mindbody: "GET /client/clients — SendPromotionalEmails is false",
-    attrib: "email_opt_out",
     syntax: "Chatwoot custom_attributes.email_opt_out and {{ .Subscriber.Attribs.email_opt_out }}",
-    example: "false",
     fallback: "false",
-    gap: false,
     insert: "",
   },
-  {
+  sms_opt_out: {
     loyalSnap: "SMS opt-out (not a LoyalSnap token)",
-    key: "sms_opt_out",
-    type: "boolean",
-    optOut: "Chatwoot custom_attributes.sms_opt_out. listmonk stores the boolean and does not blocklist for this flag",
-    mindbody: "GET /client/clients — SendPromotionalTexts is false",
-    attrib: "sms_opt_out",
     syntax: "Chatwoot custom_attributes.sms_opt_out and {{ .Subscriber.Attribs.sms_opt_out }}",
-    example: "false",
     fallback: "false",
-    gap: false,
     insert: "",
   },
-  {
+  studio: {
     loyalSnap: "*|STUDIO|*, [Studio], @Name of the client's studio",
-    key: "studio",
-    type: "string",
-    optOut: "—",
-    mindbody: "gap",
-    attrib: "studio",
     syntax: "{{ .Subscriber.Attribs.studio }} and {{ .Tx.Data.studio }}",
-    example: "Balance Moves",
     fallback: "Balance Moves",
-    gap: true,
     insert: "[Studio]",
   },
-  {
+  pack_name: {
     loyalSnap: "*|PACK_NAME|*, @Name of the client's package",
-    key: "pack_name",
-    type: "string",
-    optOut: "—",
-    mindbody: "GET /client/clientservices — Name",
-    attrib: "pack_name",
     syntax: "{{ .Subscriber.Attribs.pack_name }} and {{ .Tx.Data.packName }}",
-    example: "2 Week Intro Pass",
     fallback: "your pass",
-    gap: false,
     insert: "*|PACK_NAME|*",
   },
-  {
+  pass_end_date: {
     loyalSnap: "pass end date (expiring automations; no *|DATE|* tag in the export)",
-    key: "pass_end_date",
-    type: "date, YYYY-MM-DD. Messages print 14 Oct 2026",
-    optOut: "—",
-    mindbody: "GET /client/clientservices — ExpirationDate",
-    attrib: "pass_end_date",
     syntax: "{{ .Subscriber.Attribs.pass_end_date }} and {{ .Tx.Data.passEndDate }}",
-    example: "2026-10-14",
     fallback: "",
-    gap: false,
     insert: "*|PASS_END|*",
   },
-  {
+  visits: {
     loyalSnap: "visits (trial expiring copy says how many sessions; the preview hardcodes 5)",
-    key: "visits",
-    type: "integer",
-    optOut: "—",
-    mindbody: "GET /client/clientvisits — signed-in visits in the automation's count",
-    attrib: "visits",
     syntax: "{{ .Subscriber.Attribs.visits }} and {{ .Tx.Data.visits }}",
-    example: "3",
     fallback: "0",
-    gap: false,
     insert: "*|VISITS|*",
   },
-  {
+  credits_remaining: {
     loyalSnap: "@Number of credits remaining on the client's current package",
-    key: "credits_remaining",
-    type: "integer",
-    optOut: "—",
-    mindbody: "GET /client/clientservices — Remaining",
-    attrib: "credits_remaining",
     syntax: "{{ .Subscriber.Attribs.credits_remaining }} and {{ .Tx.Data.creditsRemaining }}",
-    example: "2",
     fallback: "",
-    gap: false,
     insert: "*|CREDITS|*",
   },
-  {
+  days_since_expiry: {
     loyalSnap: "@Days since the client's package expiration, in words",
-    key: "days_since_expiry",
-    type: "string, English words",
-    optOut: "—",
-    mindbody: "GET /client/clientservices — ExpirationDate, counted against today",
-    attrib: "days_since_expiry",
     syntax: "{{ .Subscriber.Attribs.days_since_expiry }} and {{ .Tx.Data.daysSinceExpiry }}",
-    example: "two",
     fallback: "",
-    gap: false,
     insert: "*|DAYS_SINCE_EXPIRY|*",
   },
-  {
+  days_since_last_visit: {
     loyalSnap: "@Number of days since the client's last visit, in words",
-    key: "days_since_last_visit",
-    type: "string, English words",
-    optOut: "—",
-    mindbody: "GET /client/clientvisits — StartDateTime of the latest signed-in visit",
-    attrib: "days_since_last_visit",
     syntax: "{{ .Subscriber.Attribs.days_since_last_visit }} and {{ .Tx.Data.daysSinceLastVisit }}",
-    example: "seven",
     fallback: "",
-    gap: false,
     insert: "*|DAYS_SINCE_VISIT|*",
   },
-  {
-    loyalSnap: "<%asm_group_unsubscribe_raw_url%>",
-    key: "",
-    type: "url",
-    optOut: "—",
-    mindbody: "gap",
-    attrib: "",
-    syntax: "{{ .Tx.Data.unsubscribeUrl }}",
-    example: "https://campaigns.balancemoves.com.au/subscription/form",
-    fallback: "",
-    gap: true,
-    insert: "<%asm_group_unsubscribe_raw_url%>",
-  },
-  {
+  studio_phone: {
     loyalSnap: "@Studio phone number, |STUDIO PHONE|, STUDIO_PHONE",
-    key: "studio_phone",
-    type: "phone, E.164. Messages print 0424 133 544",
-    optOut: "—",
-    mindbody: "gap",
-    attrib: "studio_phone",
     syntax: "{{ .Subscriber.Attribs.studio_phone }} and {{ .Tx.Data.studioPhone }}",
-    example: "+61424133544",
     fallback: STUDIO_PHONE,
-    gap: true,
     insert: "@Studio phone number",
   },
-  {
+  studio_address: {
     loyalSnap: "@Studio address",
-    key: "studio_address",
-    type: "string",
-    optOut: "—",
-    mindbody: "gap",
-    attrib: "studio_address",
     syntax: "{{ .Subscriber.Attribs.studio_address }} and {{ .Tx.Data.studioAddress }}",
-    example: STUDIO_ADDRESS,
     fallback: STUDIO_ADDRESS,
-    gap: true,
     insert: "@Studio address",
   },
+};
+
+const UNSUBSCRIBE: MergeField = {
+  loyalSnap: "<%asm_group_unsubscribe_raw_url%>",
+  key: "",
+  type: "url",
+  optOut: "—",
+  mindbody: "gap",
+  attrib: "",
+  syntax: "{{ .Tx.Data.unsubscribeUrl }}",
+  example: "https://campaigns.balancemoves.com.au/subscription/form",
+  fallback: "",
+  gap: true,
+  insert: "<%asm_group_unsubscribe_raw_url%>",
+};
+
+const TEMPLATE_ONLY: MergeField[] = [
   {
     loyalSnap: "@Agent",
     key: "",
@@ -330,6 +238,35 @@ export const MERGE_FIELDS: MergeField[] = [
   },
 ];
 
+function sharedRow(key: string): MergeField {
+  const field = CONTACT_FIELDS.find((row) => row.key === key);
+  const presentation = PRESENTATION[key];
+  if (!field || !presentation) throw new Error(`contact_field_missing_${key}`);
+  return {
+    loyalSnap: presentation.loyalSnap,
+    key: field.key,
+    type: field.type,
+    optOut: field.optOut,
+    mindbody: field.mindbody,
+    attrib: field.key,
+    syntax: presentation.syntax,
+    example: field.example,
+    fallback: presentation.fallback,
+    gap: field.gap,
+    insert: presentation.insert,
+  };
+}
+
+const beforeStudio = CONTACT_FIELDS.filter((field) => field.key !== "studio_phone" && field.key !== "studio_address").map((field) => sharedRow(field.key));
+
+export const MERGE_FIELDS: MergeField[] = [
+  ...beforeStudio,
+  UNSUBSCRIBE,
+  sharedRow("studio_phone"),
+  sharedRow("studio_address"),
+  ...TEMPLATE_ONLY,
+];
+
 export function renderFieldTable(): string {
   const header = "| LoyalSnap field | Field key | Type | Mindbody source | Opt-out | listmonk attrib | Template syntax | Example | Fallback |";
   const rule = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |";
@@ -346,7 +283,7 @@ export function renderMergeDoc(): string {
   const mapped = MERGE_FIELDS.length - gaps;
   return `# Merge fields
 
-One row is one value. The field key is the same name in Chatwoot \`custom_attributes\` and listmonk \`attribs\`. Dates are ISO \`YYYY-MM-DD\`. Phone numbers are E.164. \`SYNC_CONTRACT.md\` is the spec for writing both systems. This worker does not run that sync.
+One row is one value. The field key is the same name in Chatwoot \`custom_attributes\` and listmonk \`attribs\`. Dates are ISO \`YYYY-MM-DD\`. Phone numbers are E.164. \`SYNC_CONTRACT.md\` is the spec for writing both systems. This worker does not run that sync. The shared keys, types, Mindbody sources, opt-out rules, and examples come from \`@balancemoves/contacts-core\`.
 
 LoyalSnap tokens from the automation export and the dashboard scripts share rows when they print the same value. Mapped fields are read from Mindbody on each send and placed in \`POST /api/tx\` \`data\`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. The message prints the studio phone as 0424 133 544 and a pass end date as 14 Oct 2026. The stored contact fields are \`+61424133544\` and \`2026-10-14\`. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there" in the message. \`attribs.first_name\` stays the Mindbody value, including blank.
 

@@ -1,3 +1,5 @@
+import type { NormalizedContact } from "./contact";
+
 export type ListmonkConnection = {
   baseUrl: string;
   apiUser: string;
@@ -81,6 +83,35 @@ export class ListmonkClient {
     return subscriber;
   }
 
+  async upsertContact(contact: NormalizedContact): Promise<Subscriber> {
+    if (!contact.email) throw new Error("listmonk_email_missing");
+    const status = contact.emailOptOut ? "blocklisted" : "enabled";
+    const name = contact.name || contact.email;
+    const existing = await this.findSubscriber(contact.email);
+    if (existing) {
+      await this.writeAttribs(existing, contact.email, name, contact.attribs, status);
+      return { ...existing, status, attribs: { ...existing.attribs, ...contact.attribs } };
+    }
+    if (!this.connection.listId) throw new Error("listmonk_list_id_missing");
+    const response = await this.fetchImpl(`${this.connection.baseUrl}/api/subscribers`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({
+        email: contact.email,
+        name,
+        status,
+        lists: [Number(this.connection.listId)],
+        preconfirm_subscriptions: true,
+        attribs: contact.attribs,
+      }),
+    });
+    if (!response.ok) throw new Error(`listmonk_create_${response.status}`);
+    const body = (await response.json()) as { data?: unknown };
+    const subscriber = body.data ? mapSubscriber(body.data) : null;
+    if (!subscriber) throw new Error("listmonk_create_empty");
+    return subscriber;
+  }
+
   isSuppressed(subscriber: Subscriber | null): boolean {
     if (!subscriber) return false;
     if (subscriber.status === "blocklisted") return true;
@@ -109,6 +140,7 @@ export class ListmonkClient {
     email: string,
     name: string,
     attribs: Record<string, string>,
+    status = subscriber.status || "enabled",
   ): Promise<void> {
     const listId = Number(this.connection.listId);
     const lists = subscriber.listIds.length > 0
@@ -122,7 +154,7 @@ export class ListmonkClient {
       body: JSON.stringify({
         email,
         name,
-        status: subscriber.status || "enabled",
+        status,
         lists,
         attribs: { ...subscriber.attribs, ...attribs },
       }),

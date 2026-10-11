@@ -29,6 +29,8 @@ Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.t
 
 `CONTACT_WRITE_MODE` defaults to `shared_sync`. The shared Mindbody contact sync writes Chatwoot and listmonk in parallel, each with its own retry queue. This worker does not run that sync. It reads the listmonk subscriber by email and, if listmonk has no row, skips the email and logs `subscriber_missing`. `self` is for dev and test: a write runs only while `DEV_MODE` is true and the address is on `SEND_ALLOWLIST`. `SYNC_CONTRACT.md` is that spec.
 
+Shared contact code lives in `packages/contacts-core` (`@balancemoves/contacts-core`): the field list, Mindbody mapping, Mindbody client, and the listmonk and Chatwoot contact clients. This worker imports that package. The Chatwoot sync Worker is on hold; `SYNC_CONTRACT.md` shows the import it will use when it resumes.
+
 `GET /admin/merge-fields` returns that list plus example values. The text editor has an Insert field control that drops the token into the message. The phone preview uses the example values.
 
 ## Run locally

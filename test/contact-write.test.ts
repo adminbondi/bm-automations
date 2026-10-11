@@ -35,6 +35,10 @@ describe("contact write mode", () => {
     expect(doc).toContain("E.164");
     expect(doc).toContain("blocklisted");
     expect(doc).toContain("| Field key |");
+    expect(doc).toContain("@balancemoves/contacts-core");
+    expect(doc).toContain("ChatwootContacts");
+    expect(doc).toContain("mapClient");
+    expect(doc).toContain("on hold");
     for (const field of MERGE_FIELDS) {
       if (field.attrib) expect(doc).toContain(`attribs.${field.attrib}`);
     }

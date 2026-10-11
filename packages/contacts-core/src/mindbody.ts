@@ -1,10 +1,16 @@
-import type { RuntimeConfig } from "../env";
-import { addDays, sydneyDate } from "../time";
-import type { ContractRecord, ServiceRecord, Visit } from "../automations/types";
+import { mapClient } from "./contact";
+import { addDays, sydneyDate, toIsoDate } from "./dates";
 
 const API = "https://api.mindbodyonline.com/public/v6";
 const VISIT_PAGE = 200;
 const VISIT_CAP = 500;
+
+export type MindbodyAuth = {
+  apiKey: string;
+  siteId: string;
+  staffUsername: string;
+  staffPassword: string;
+};
 
 export type ClientProfile = {
   email: string | null;
@@ -15,20 +21,40 @@ export type ClientProfile = {
   waiverSigned: boolean;
   birthDate?: string | null;
   referredBy?: string | null;
+  emailOptOut?: boolean;
+  smsOptOut?: boolean;
+};
+
+export type MindbodyService = {
+  name: string;
+  expirationSydney: string | null;
+  current: boolean;
+  remaining?: number | null;
+};
+
+export type MindbodyContract = { name: string };
+
+export type MindbodyVisit = {
+  id: number;
+  signedIn: boolean;
+  lateCancelled: boolean;
+  earlyCancelled: boolean;
+  serviceName: string;
+  startSydney?: string | null;
 };
 
 export type ClientSnapshot = {
   profile: ClientProfile;
-  services: ServiceRecord[];
-  contracts: ContractRecord[];
-  visits: Visit[];
+  services: MindbodyService[];
+  contracts: MindbodyContract[];
+  visits: MindbodyVisit[];
 };
 
 export class MindbodyClient {
   private token: string | null = null;
 
   constructor(
-    private readonly config: RuntimeConfig,
+    private readonly auth: MindbodyAuth,
     private readonly fetchImpl: typeof fetch,
     private readonly now: () => Date = () => new Date(),
   ) {}
@@ -44,22 +70,26 @@ export class MindbodyClient {
     return { profile, services, contracts, visits };
   }
 
+  async contact(clientId: string) {
+    const token = await this.staffToken();
+    const body = await this.get(`/client/clients?request.clientIDs=${encodeURIComponent(clientId)}`, token);
+    const clients = Array.isArray(body.Clients) ? body.Clients : [];
+    return mapClient((clients[0] ?? {}) as Record<string, unknown>);
+  }
+
   private async staffToken(): Promise<string> {
     if (this.token) return this.token;
-    if (!this.config.mindbodyApiKey || !this.config.mindbodyStaffUsername || !this.config.mindbodyStaffPassword) {
+    if (!this.auth.apiKey || !this.auth.staffUsername || !this.auth.staffPassword) {
       throw new Error("mindbody_staff_credentials_missing");
     }
     const response = await this.fetchImpl(`${API}/usertoken/issue`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Api-Key": this.config.mindbodyApiKey,
-        SiteId: this.config.siteId,
+        "Api-Key": this.auth.apiKey,
+        SiteId: this.auth.siteId,
       },
-      body: JSON.stringify({
-        Username: this.config.mindbodyStaffUsername,
-        Password: this.config.mindbodyStaffPassword,
-      }),
+      body: JSON.stringify({ Username: this.auth.staffUsername, Password: this.auth.staffPassword }),
     });
     if (!response.ok) throw new Error(`mindbody_token_${response.status}`);
     const body = (await response.json()) as { AccessToken?: string; Token?: string };
@@ -72,8 +102,8 @@ export class MindbodyClient {
   private async get(path: string, token: string): Promise<Record<string, unknown>> {
     const response = await this.fetchImpl(`${API}${path}`, {
       headers: {
-        "Api-Key": this.config.mindbodyApiKey,
-        SiteId: this.config.siteId,
+        "Api-Key": this.auth.apiKey,
+        SiteId: this.auth.siteId,
         Authorization: token,
       },
     });
@@ -85,44 +115,44 @@ export class MindbodyClient {
     const body = await this.get(`/client/clients?request.clientIDs=${encodeURIComponent(clientId)}`, token);
     const clients = Array.isArray(body.Clients) ? body.Clients : [];
     const client = (clients[0] ?? {}) as Record<string, unknown>;
+    const contact = mapClient(client);
     const liability = client.Liability as { IsReleased?: boolean } | undefined;
     return {
-      email: stringOrNull(client.Email),
-      phone: stringOrNull(client.MobilePhone) ?? stringOrNull(client.HomePhone) ?? stringOrNull(client.WorkPhone),
-      firstName: stringOrNull(client.FirstName),
-      lastName: stringOrNull(client.LastName),
-      createdAt: stringOrNull(client.CreationDate),
+      email: contact.email,
+      phone: contact.phone,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      createdAt: text(client.CreationDate),
       waiverSigned: client.LiabilityRelease === true || client.IsLiabilityReleased === true || liability?.IsReleased === true,
-      birthDate: toSydneyDate(stringOrNull(client.BirthDate)),
-      referredBy: stringOrNull(client.ReferredBy),
+      birthDate: toIsoDate(text(client.BirthDate)),
+      referredBy: text(client.ReferredBy),
+      emailOptOut: contact.emailOptOut,
+      smsOptOut: contact.smsOptOut,
     };
   }
 
-  private async services(clientId: string, token: string): Promise<ServiceRecord[]> {
-    const body = await this.get(
-      `/client/clientservices?request.clientId=${encodeURIComponent(clientId)}&request.limit=200`,
-      token,
-    );
+  private async services(clientId: string, token: string): Promise<MindbodyService[]> {
+    const body = await this.get(`/client/clientservices?request.clientId=${encodeURIComponent(clientId)}&request.limit=200`, token);
     const rows = Array.isArray(body.ClientServices) ? body.ClientServices : [];
     return rows.map((row) => {
       const service = row as Record<string, unknown>;
       return {
-        name: stringOrNull(service.Name) ?? "",
-        expirationSydney: toSydneyDate(stringOrNull(service.ExpirationDate)),
+        name: text(service.Name) ?? "",
+        expirationSydney: toIsoDate(text(service.ExpirationDate)),
         current: service.Current !== false,
         remaining: typeof service.Remaining === "number" ? service.Remaining : null,
       };
     });
   }
 
-  private async contracts(clientId: string, token: string): Promise<ContractRecord[]> {
+  private async contracts(clientId: string, token: string): Promise<MindbodyContract[]> {
     const body = await this.get(`/client/clientcontracts?request.clientId=${encodeURIComponent(clientId)}`, token);
     const rows = Array.isArray(body.Contracts) ? body.Contracts : [];
-    return rows.map((row) => ({ name: stringOrNull((row as Record<string, unknown>).ContractName) ?? "" }));
+    return rows.map((row) => ({ name: text((row as Record<string, unknown>).ContractName) ?? "" }));
   }
 
-  private async visits(clientId: string, token: string): Promise<Visit[]> {
-    const visits: Visit[] = [];
+  private async visits(clientId: string, token: string): Promise<MindbodyVisit[]> {
+    const visits: MindbodyVisit[] = [];
     let offset = 0;
     const today = sydneyDate(this.now());
     const start = addDays(today, -400);
@@ -135,17 +165,19 @@ export class MindbodyClient {
       const rows = Array.isArray(body.Visits) ? body.Visits : [];
       for (const row of rows) {
         const visit = row as Record<string, unknown>;
-        const status = stringOrNull(visit.AppointmentStatus) ?? stringOrNull(visit.Status);
+        const status = text(visit.AppointmentStatus) ?? text(visit.Status);
         visits.push({
           id: typeof visit.Id === "number" ? visit.Id : visits.length + 1,
           signedIn: visit.SignedIn === true,
           lateCancelled: visit.LateCancelled === true || status === "LateCancelled" || status === "LateCancel",
           earlyCancelled: visit.EarlyCancelled === true || status === "EarlyCancelled" || status === "EarlyCancel",
-          serviceName: stringOrNull(visit.ServiceName) ?? stringOrNull(visit.Name) ?? "",
-          startSydney: toSydneyDate(stringOrNull(visit.StartDateTime) ?? stringOrNull(visit.ClassDate)),
+          serviceName: text(visit.ServiceName) ?? text(visit.Name) ?? "",
+          startSydney: toIsoDate(text(visit.StartDateTime) ?? text(visit.ClassDate)),
         });
       }
-      const total = numberOrNull((body.PaginationResponse as { TotalResults?: number } | undefined)?.TotalResults);
+      const total = typeof (body.PaginationResponse as { TotalResults?: number } | undefined)?.TotalResults === "number"
+        ? (body.PaginationResponse as { TotalResults: number }).TotalResults
+        : null;
       offset += rows.length;
       if (rows.length < VISIT_PAGE || (total !== null && offset >= total)) break;
     }
@@ -153,17 +185,6 @@ export class MindbodyClient {
   }
 }
 
-function stringOrNull(value: unknown): string | null {
+function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
-}
-
-function numberOrNull(value: unknown): number | null {
-  return typeof value === "number" ? value : null;
-}
-
-function toSydneyDate(value: string | null): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return sydneyDate(parsed);
 }

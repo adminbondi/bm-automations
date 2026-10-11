@@ -1,6 +1,6 @@
 import { nameMatchesTokens } from "../names";
 import { daysUntil } from "../time";
-import type { ClientSnapshot } from "../mindbody/client";
+import type { ClientSnapshot } from "@balancemoves/contacts-core";
 import { CLASS_PASS_TOKENS, INTRO_PASS_TOKENS } from "../automations/seed";
 
 export type SegmentFilter = {

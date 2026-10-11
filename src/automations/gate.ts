@@ -1,4 +1,4 @@
-import { normalizePhone } from "../phone";
+import { normalizePhone } from "@balancemoves/contacts-core";
 import type { Channel } from "./types";
 
 export type GateInput = {

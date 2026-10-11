@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { D1Database } from "@cloudflare/workers-types";
 import { d1Database, Repo, type Db } from "../src/db/repo";
-import type { ClientSnapshot } from "../src/mindbody/client";
+import type { ClientSnapshot } from "@balancemoves/contacts-core";
 import type { Visit } from "../src/automations/types";
 
 export function applyMigrations(db: DatabaseSync): void {

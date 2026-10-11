@@ -38,6 +38,24 @@ While `CONTACT_WRITE_MODE` is `shared_sync` (the default), this worker looks up 
 
 Per-send values still go in `POST /api/tx` `data`, including `passEndDate`, `visits`, `creditsRemaining`, `daysSinceExpiry`, and `daysSinceLastVisit`. Rows with an empty field key are template data only. The sync does not store them.
 
+## Shared module
+
+The field list, the Mindbody-to-contact mapping (ISO dates, E.164 phones, email and SMS opt-out), the Mindbody API client, and the listmonk and Chatwoot contact clients live in `@balancemoves/contacts-core`. The source is `packages/contacts-core` in this repository. bm-automations already depends on that package and imports `CONTACT_FIELDS`, `mapClient`, `MindbodyClient`, `ListmonkClient`, and `normalizePhone` from it.
+
+The Chatwoot sync Worker is on hold. Leave that Worker as it is. Do not copy these files into it. When that Worker resumes, it depends on the same package:
+
+```ts
+import {
+  CONTACT_FIELDS,
+  mapClient,
+  MindbodyClient,
+  ListmonkClient,
+  ChatwootContacts,
+} from "@balancemoves/contacts-core";
+```
+
+`mapClient` turns a Mindbody client payload into the shared attribs. `MindbodyClient.contact` loads that client and returns the same object. `ListmonkClient.upsertContact` writes the listmonk subscriber and sets `blocklisted` when `emailOptOut` is true. `ChatwootContacts.upsert` writes the Chatwoot contact. `CONTACT_FIELDS` is the field list below.
+
 ## Field list
 
 15 shared keys.

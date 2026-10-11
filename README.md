@@ -19,8 +19,11 @@ Mindbody webhooks and the Sydney morning cron re-check the Mindbody Public API, 
 npm install
 cp .dev.vars.example .dev.vars
 npm test
+npx wrangler d1 migrations apply bm-automations --local
 npm run dev
 ```
+
+Apply the local D1 migrations before starting the dev server. `wrangler dev` does not always create those tables on its own.
 
 [Health check](http://127.0.0.1:8791/health) answers `{ "ok": true, "devMode": true }`. `GET /` is the Google sign-in page, and a signed-in session opens [Automations](http://127.0.0.1:8791/automations). `GET /admin/settings` without a session returns `401`.
 

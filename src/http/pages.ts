@@ -78,8 +78,9 @@ export function editPage(automation: Automation | null, settings: PublicSettings
   const toggle = creating
     ? `<label class="radio"><input type="checkbox" name="enabled"> Off until you switch it on</label>`
     : `<form method="post" action="/automations/${automation.id}/toggle"><button class="plain" type="submit"><span class="sw${enabled ? " on" : ""}"></span> ${enabled ? "On" : "Off"}</button></form>`;
-  return `${flash(error)}${notice ? `<div class="banner">${escapeHtml(noticeText(notice))}</div>` : ""}<p class="small"><a href="/automations" style="color:var(--accent)">← Automations</a></p>
-<div class="bar"><div><h2 style="font-size:1.25rem">${escapeHtml(title)}</h2><span class="muted small">${creating ? "New automation" : "Edit automation"}</span></div>${toggle}</div>
+  return `${flash(error)}${notice ? `<div class="banner">${escapeHtml(noticeText(notice))}</div>` : ""}<header><div><h1>${creating ? "New automation" : "Edit automation"}</h1><p class="muted" style="margin:0">Emails via listmonk · texts via Twilio · times in Sydney</p></div></header>
+<p class="small"><a href="/automations" style="color:var(--accent)">← Automations</a></p>
+<div class="bar"><div><h2 style="font-size:1.25rem">${escapeHtml(title || "New automation")}</h2><span class="muted small">${creating ? "New automation" : "Edit automation"}</span></div>${toggle}</div>
 <form method="post" action="${action}"><div class="grid"><div class="card full" style="margin:0"><div class="grid">
 <label>Name<input name="name" value="${escapeHtml(name)}" required></label>
 <label>Channel<div class="seg" id="seg">

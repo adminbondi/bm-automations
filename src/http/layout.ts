@@ -20,14 +20,14 @@ export function adminPage(options: {
     `<a href="${href}" class="${options.active === id ? "on" : ""}"><span>${icon}</span>${label}</a>`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(options.title)} · Balance Moves</title><style>${CSS}</style></head><body>
 <div class="topm"><button class="ghost" type="button" onclick="document.body.classList.toggle('menu')">☰ Menu</button><b>Balance Moves admin</b></div>
-<aside class="side"><div class="brand">Balance Moves<div class="muted small">Admin</div></div><nav>
+<aside class="side"><div class="rail"><div class="brand">Balance Moves<div class="muted small">Admin</div></div><nav>
 <a href="${TASKS_URL}"><span>☰</span>Tasks</a>
 ${nav("automations", "/automations", "⚡", "Automations")}
 ${nav("log", "/log", "📋", "Send log")}
 ${nav("settings", "/settings", "⚙", "Settings")}
 </nav>
 <div class="foot"><div class="user"><div class="avatar">${escapeHtml(person.initials)}</div><div class="small"><div>${escapeHtml(person.label)}</div><div class="muted">${escapeHtml(options.email)}</div></div></div>
-<form method="post" action="/logout"><button class="ghost" type="submit" style="width:100%;margin-top:10px">Sign out</button></form></div></aside>
+<form method="post" action="/logout"><button class="ghost" type="submit" style="width:100%;margin-top:10px">Sign out</button></form></div></div></aside>
 <main class="wrap">${options.body}</main>${options.script ? `<script>${options.script}</script>` : ""}</body></html>`;
 }
 
@@ -47,7 +47,10 @@ const CSS = `:root{color-scheme:light;--ink:#1c1917;--muted:#78716c;--line:#e7e5
 .btn.ghost,button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
 button.plain{background:transparent;color:inherit;border:0;padding:0;border-radius:0}
 header{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap}
-.side{position:fixed;top:0;left:0;bottom:0;width:220px;background:#fff;border-right:1px solid var(--line);display:flex;flex-direction:column;padding:22px 14px;z-index:5}.brand{font-weight:700;color:var(--accent);padding:0 10px 18px}nav{display:flex;flex-direction:column;gap:2px;flex:1}nav a{display:flex;gap:10px;padding:9px 12px;border-radius:10px;color:var(--ink);text-decoration:none}nav a:hover{background:#f5f5f4}nav a.on{background:#ccfbf1;color:var(--accent);font-weight:600}.foot{border-top:1px solid var(--line);padding-top:14px}.topm{display:none}body{padding-left:220px}
+html,body{min-height:100%}body{position:relative;min-height:100vh;padding-left:220px}
+.side{position:absolute;top:0;bottom:0;left:0;width:220px;background:#fff;border-right:1px solid var(--line);z-index:5}
+.rail{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:22px 14px;background:#fff}
+.brand{font-weight:700;color:var(--accent);padding:0 10px 18px}nav{display:flex;flex-direction:column;gap:2px;flex:1}nav a{display:flex;gap:10px;padding:9px 12px;border-radius:10px;color:var(--ink);text-decoration:none}nav a:hover{background:#f5f5f4}nav a.on{background:#ccfbf1;color:var(--accent);font-weight:600}.foot{border-top:1px solid var(--line);padding-top:14px}.topm{display:none}
 .user{display:flex;align-items:center;gap:10px}.avatar{width:32px;height:32px;border-radius:50%;background:#ccfbf1;color:#0f766e;display:grid;place-items:center;font-weight:600;font-size:13px}
 .bar{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
@@ -77,6 +80,6 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 .secret{display:flex;gap:8px;align-items:center}.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:8px}
 .err{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:10px 14px;margin-bottom:14px}
 a.name{color:var(--ink);font-weight:600}
-@media(max-width:760px){body{padding-left:0}.topm{display:flex;gap:12px;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:6}.side{transform:translateX(-100%);transition:.2s;top:53px;box-shadow:0 8px 30px #0002}body.menu .side{transform:none}.wrap{padding:18px 12px 48px}.grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr;gap:4px}
+@media(max-width:760px){body{padding-left:0}.topm{display:flex;gap:12px;align-items:center;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:6}.side{position:fixed;top:53px;bottom:0;height:auto;transform:translateX(-100%);transition:.2s;box-shadow:0 8px 30px #0002}.rail{height:100%;position:relative;overflow:auto}body.menu .side{transform:none}.wrap{padding:18px 12px 48px}.grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr;gap:4px}
  table.cards thead{display:none}table.cards tr{display:block;border-bottom:1px solid var(--line);padding:8px 4px}table.cards td{display:flex;justify-content:space-between;gap:12px;border:0;padding:3px 8px}
  table.cards td::before{content:attr(data-l);font-size:11px;text-transform:uppercase;color:var(--muted)}td.prev{max-width:none}.hide-m{display:none!important}}`;

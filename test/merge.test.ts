@@ -254,18 +254,7 @@ describe("merge field delivery", () => {
       body,
     }), env, {} as ExecutionContext);
     expect(response.status).toBe(200);
-    const put = calls.find((call) => call.method === "PUT" && call.url.includes("/api/subscribers/9"));
-    expect(JSON.parse(put?.body ?? "{}").attribs).toMatchObject({
-      keep: "yes",
-      first_name: "Ada",
-      last_name: "Lovelace",
-      pack_name: "2 Week Intro Pass",
-      pass_end_date: "14 Oct 2026",
-      visits: "1",
-      credits_remaining: "2",
-      days_since_last_visit: "seven",
-      studio_phone: "0424 133 544",
-    });
+    expect(calls.some((call) => call.method === "PUT" || call.method === "POST" && call.url.includes("/api/subscribers"))).toBe(false);
     const tx = JSON.parse(calls.find((call) => call.url.includes("/api/tx"))?.body ?? "{}") as { data: Record<string, unknown> };
     expect(tx.data).toMatchObject({
       FirstName: "Ada",

@@ -5,6 +5,7 @@ import type { ListmonkClient } from "../listmonk/client";
 import { log } from "../log";
 import { buildMerge, renderMerge } from "../merge/values";
 import { withReplyStop } from "../sms";
+import { mayWriteSubscriber, type ContactWriteMode } from "../sync/mode";
 import type { TwilioClient } from "../twilio/client";
 import type { GatedPlan } from "./plan";
 
@@ -18,6 +19,9 @@ export type ApplyOptions = {
   studioName: string;
   listmonkBaseUrl: string;
   todaySydney: string;
+  contactWriteMode: ContactWriteMode;
+  devMode: boolean;
+  emailAllowlist: string[];
   jobId?: number;
   payload?: JobPayload;
   appendReplyStop?: boolean;
@@ -147,11 +151,51 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
   if (!email || plan.templateId === null) return "blocked";
   if (await options.repo.hasSent(key)) return "blocked";
   const name = [options.firstName, options.lastName].filter(Boolean).join(" ") || email;
-  const subscriber = await options.listmonk.ensureSubscriber({
+  const write = mayWriteSubscriber({
+    mode: options.contactWriteMode,
+    devMode: options.devMode,
     email,
-    name,
-    ...(plan.copy ? {} : { attribs: plan.attribs }),
+    emailAllowlist: options.emailAllowlist,
   });
+  if (options.contactWriteMode === "self" && !write) {
+    const listed = options.emailAllowlist.includes(email.trim().toLowerCase());
+    log({
+      event: "contact_write_skipped",
+      reason: listed ? "dev_mode_off" : "not_allowlisted",
+      automationId: plan.automation.id,
+      automationKey: plan.automation.key,
+      email,
+    });
+  }
+  const subscriber = write
+    ? await options.listmonk.ensureSubscriber({
+      email,
+      name,
+      ...(plan.copy ? {} : { attribs: plan.attribs }),
+    })
+    : await options.listmonk.findSubscriber(email);
+  if (!subscriber) {
+    log({
+      event: "send_skipped",
+      reason: "subscriber_missing",
+      contactWriteMode: options.contactWriteMode,
+      automationId: plan.automation.id,
+      automationKey: plan.automation.key,
+      email,
+    });
+    await options.repo.recordSend({
+      dedupeKey: key,
+      automationId: plan.automation.id,
+      clientId: options.clientId,
+      channel: "email",
+      templateId: plan.templateId,
+      email,
+      phone: null,
+      status: "skipped_no_subscriber",
+      detail: "subscriber_missing",
+    });
+    return "blocked";
+  }
   if (options.listmonk.isSuppressed(subscriber)) {
     await options.repo.recordSend({
       dedupeKey: key,

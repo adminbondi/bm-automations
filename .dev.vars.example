@@ -1,5 +1,7 @@
 # Copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
 # DEV_MODE stays true until an owner is ready to message real clients.
+# CONTACT_WRITE_MODE defaults to shared_sync in wrangler.jsonc.
+# self writes listmonk subscribers only in dev mode, and only for SEND_ALLOWLIST.
 # Empty values keep the worker from calling live APIs.
 
 MINDBODY_API_KEY=

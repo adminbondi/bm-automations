@@ -1,4 +1,5 @@
 import { normalizePhone } from "./phone";
+import { parseContactWriteMode, type ContactWriteMode } from "./sync/mode";
 import { DEFAULT_QUIET_END, DEFAULT_QUIET_START } from "./time";
 
 export interface RuntimeBindings {
@@ -31,6 +32,7 @@ export interface RuntimeBindings {
   TWILIO_ACCOUNT_SID?: string;
   TWILIO_AUTH_TOKEN?: string;
   LEAD_WEBHOOK_SECRET?: string;
+  CONTACT_WRITE_MODE?: string;
 }
 
 export type RuntimeConfig = {
@@ -63,6 +65,7 @@ export type RuntimeConfig = {
   twilioAccountSid: string;
   twilioAuthToken: string;
   leadWebhookSecret: string;
+  contactWriteMode: ContactWriteMode;
 };
 
 export function parseDevMode(value: string | undefined): boolean {
@@ -131,6 +134,7 @@ export function runtimeConfig(env: RuntimeBindings): RuntimeConfig {
     twilioAccountSid: env.TWILIO_ACCOUNT_SID ?? "",
     twilioAuthToken: env.TWILIO_AUTH_TOKEN ?? "",
     leadWebhookSecret: env.LEAD_WEBHOOK_SECRET ?? "",
+    contactWriteMode: parseContactWriteMode(env.CONTACT_WRITE_MODE),
   };
 }
 
@@ -169,5 +173,6 @@ export function bindingsFromEnv(env: Env): RuntimeBindings {
     TWILIO_ACCOUNT_SID: secret("TWILIO_ACCOUNT_SID"),
     TWILIO_AUTH_TOKEN: secret("TWILIO_AUTH_TOKEN"),
     LEAD_WEBHOOK_SECRET: secret("LEAD_WEBHOOK_SECRET"),
+    CONTACT_WRITE_MODE: env.CONTACT_WRITE_MODE,
   };
 }

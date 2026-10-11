@@ -96,6 +96,9 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
         studioName: loaded.config.studioName,
         listmonkBaseUrl: loaded.connections.listmonkBaseUrl,
         todaySydney: facts.todaySydney,
+        contactWriteMode: loaded.config.contactWriteMode,
+        devMode: loaded.config.devMode,
+        emailAllowlist: loaded.config.emailAllowlist,
         payload: eventPayload(event),
         appendReplyStop: loaded.connections.appendReplyStop,
       });

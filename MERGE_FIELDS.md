@@ -2,7 +2,7 @@
 
 LoyalSnap tokens from the automation export and the dashboard scripts. One row is one value. Aliases that print the same value share a row.
 
-Mapped fields are read from Mindbody on each send and written to the listmonk subscriber (`attribs`) and to `POST /api/tx` `data`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there". Other empty fallbacks remove the token.
+Mapped fields are read from Mindbody on each send and placed in `POST /api/tx` `data`. Subscriber attributes are written by the shared contact sync (`SYNC_CONTRACT.md`). This worker writes them only when `CONTACT_WRITE_MODE` is `self`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there". Other empty fallbacks remove the token.
 
 | | Count |
 | --- | ---: |

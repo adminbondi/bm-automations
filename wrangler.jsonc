@@ -46,6 +46,7 @@
     "SMS_QUIET_START": "20:00",
     "SMS_QUIET_END": "09:00",
     "STUDIO_NAME": "Balance Moves",
+    "CONTACT_WRITE_MODE": "shared_sync",
     "TWILIO_FROM_NUMBER": "",
     "TWILIO_SENDER_NAME": ""
   },

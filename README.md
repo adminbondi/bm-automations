@@ -25,7 +25,9 @@ Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.t
 
 ## Merge fields
 
-`MERGE_FIELDS.md` lists every LoyalSnap token from the automation export and the dashboard scripts. On a send the worker reads the mapped values from the Mindbody snapshot already loaded for that client, writes them onto the listmonk subscriber (`PUT /api/subscribers/{id}` `attribs`), and sends the same values in `POST /api/tx` `data`. SMS replaces the token in the message. A missing first name becomes "there" in the text and in `Tx.Data.FirstName`. The subscriber attribute stays the Mindbody value, including blank. Studio phone and address fill from the worker. Offer prices, the agent name, and the purchase URLs are gaps and render as empty.
+`MERGE_FIELDS.md` lists every LoyalSnap token from the automation export and the dashboard scripts. On a send the worker reads the mapped values from the Mindbody snapshot already loaded for that client and sends them in `POST /api/tx` `data`. SMS replaces the token in the message. A missing first name becomes "there" in the text and in `Tx.Data.FirstName`. Studio phone and address fill from the worker. Offer prices, the agent name, and the purchase URLs are gaps and render as empty.
+
+`CONTACT_WRITE_MODE` defaults to `shared_sync`. Listmonk subscribers are owned by the shared Mindbody contact sync (the same one that feeds Chatwoot). This worker reads the subscriber by email and, if listmonk has no row, skips the email and logs `subscriber_missing`. It does not create or update subscribers in that mode. `self` is for dev and test: a write runs only while `DEV_MODE` is true and the address is on `SEND_ALLOWLIST`. `SYNC_CONTRACT.md` lists the attribute keys that sync must write.
 
 `GET /admin/merge-fields` returns that list plus example values. The text editor has an Insert field control that drops the token into the message. The phone preview uses the example values.
 

@@ -142,6 +142,9 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
       return Response.json({
         fields: MERGE_FIELDS.map((field) => ({
           loyalSnap: field.loyalSnap,
+          key: field.key || null,
+          type: field.type,
+          optOut: field.optOut,
           mindbody: field.gap ? "gap" : field.mindbody,
           attrib: field.attrib ? `attribs.${field.attrib}` : null,
           syntax: field.syntax,

@@ -96,7 +96,7 @@ export function editPage(automation: Automation | null, settings: PublicSettings
 <div class="preview"><div class="hd">Subject: <span id="subject">${escapeHtml(subject)}</span><br>From: ${fromLine}</div>
 <div class="mail"><div class="logo">BALANCE MOVES</div><b>Hi Alex,</b><p>Welcome to your Intro Pass! Here's how to book your first class…</p><p class="muted small">Example client data</p></div></div></div>
 <div id="textbox"${channel === "sms" ? "" : " hidden"}><label>Text message<textarea name="messageText" id="sms">${escapeHtml(message)}</textarea></label>
-<label class="small">Insert field<select id="insert-field"><option value="">Choose a field…</option>${MERGE_FIELDS.map((field) => `<option value="${escapeHtml(field.insert)}">${escapeHtml(field.insert)}</option>`).join("")}</select></label>
+<label class="small">Insert field<select id="insert-field"><option value="">Choose a field…</option>${MERGE_FIELDS.filter((field) => field.insert).map((field) => `<option value="${escapeHtml(field.insert)}">${escapeHtml(field.insert)}</option>`).join("")}</select></label>
 <div class="counter"><span id="cc"></span><span>"Reply STOP" footer: ${stop} (<a href="/settings">Settings</a>)</span></div>
 <p class="small muted" style="margin-bottom:6px">Phone preview <span class="ex">example</span></p><div class="bubble" id="bub"></div></div></div>
 <div class="card" style="margin:0"><h2>When and who</h2>

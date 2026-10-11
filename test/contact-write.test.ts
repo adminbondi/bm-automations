@@ -26,7 +26,15 @@ describe("contact write mode", () => {
     expect(readFileSync("SYNC_CONTRACT.md", "utf8")).toBe(doc);
     expect(doc).toContain("shared_sync");
     expect(doc).toContain("subscriber_missing");
-    expect(doc).toContain("Tx.Data.passEndDate");
+    expect(doc).toContain("passEndDate");
+    expect(doc).toContain("in parallel");
+    expect(doc).toContain("own retry queue");
+    expect(doc).toContain("Chatwoot");
+    expect(doc).toContain("custom_attributes");
+    expect(doc).toContain("YYYY-MM-DD");
+    expect(doc).toContain("E.164");
+    expect(doc).toContain("blocklisted");
+    expect(doc).toContain("| Field key |");
     for (const field of MERGE_FIELDS) {
       if (field.attrib) expect(doc).toContain(`attribs.${field.attrib}`);
     }

@@ -1,34 +1,37 @@
 # Merge fields
 
-LoyalSnap tokens from the automation export and the dashboard scripts. One row is one value. Aliases that print the same value share a row.
+One row is one value. The field key is the same name in Chatwoot `custom_attributes` and listmonk `attribs`. Dates are ISO `YYYY-MM-DD`. Phone numbers are E.164. `SYNC_CONTRACT.md` is the spec for writing both systems. This worker does not run that sync.
 
-Mapped fields are read from Mindbody on each send and placed in `POST /api/tx` `data`. Subscriber attributes are written by the shared contact sync (`SYNC_CONTRACT.md`). This worker writes them only when `CONTACT_WRITE_MODE` is `self`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there". Other empty fallbacks remove the token.
+LoyalSnap tokens from the automation export and the dashboard scripts share rows when they print the same value. Mapped fields are read from Mindbody on each send and placed in `POST /api/tx` `data`. SMS bodies replace the LoyalSnap token. A gap has no Mindbody field. Studio name, phone, and address still fill from the worker, because the texts already say [Studio]. The message prints the studio phone as 0424 133 544 and a pass end date as 14 Oct 2026. The stored contact fields are `+61424133544` and `2026-10-14`. Offer prices, the agent name, and the purchase URLs stay empty until an owner sets them. A missing first name becomes "there" in the message. `attribs.first_name` stays the Mindbody value, including blank.
 
 | | Count |
 | --- | ---: |
-| Mapped | 9 |
+| Mapped | 12 |
 | Gap | 12 |
 
-| LoyalSnap field | Mindbody source | listmonk attrib | Template syntax | Example | Fallback |
-| --- | --- | --- | --- | --- | --- |
-| *&#124;FNAME&#124;*, [First name], @Client's first name | GET /client/clients — FirstName | attribs.first_name | {{ .Subscriber.FirstName }} and {{ .Tx.Data.FirstName }} | Alex | there |
-| [Last name] | GET /client/clients — LastName | attribs.last_name | {{ .Subscriber.LastName }} and {{ .Tx.Data.LastName }} | Nguyen | empty |
-| *&#124;EMAIL&#124;* | GET /client/clients — Email | attribs.email | {{ .Subscriber.Email }} and {{ .Tx.Data.Email }} | bondi@balancemoves.com.au | empty |
-| *&#124;STUDIO&#124;*, [Studio], @Name of the client's studio | gap | attribs.studio | {{ .Subscriber.Attribs.studio }} and {{ .Tx.Data.studio }} | Balance Moves | Balance Moves |
-| *&#124;PACK_NAME&#124;*, @Name of the client's package | GET /client/clientservices — Name | attribs.pack_name | {{ .Subscriber.Attribs.pack_name }} and {{ .Tx.Data.packName }} | 2 Week Intro Pass | your pass |
-| pass end date (expiring automations; no *&#124;DATE&#124;* tag in the export) | GET /client/clientservices — ExpirationDate | attribs.pass_end_date | {{ .Subscriber.Attribs.pass_end_date }} and {{ .Tx.Data.passEndDate }} | 14 Oct 2026 | empty |
-| visits (trial expiring copy says how many sessions; the preview hardcodes 5) | GET /client/clientvisits — signed-in visits in the automation's count | attribs.visits | {{ .Subscriber.Attribs.visits }} and {{ .Tx.Data.visits }} | 3 | 0 |
-| @Number of credits remaining on the client's current package | GET /client/clientservices — Remaining | attribs.credits_remaining | {{ .Subscriber.Attribs.credits_remaining }} and {{ .Tx.Data.creditsRemaining }} | 2 | empty |
-| @Days since the client's package expiration, in words | GET /client/clientservices — ExpirationDate, counted against today | attribs.days_since_expiry | {{ .Subscriber.Attribs.days_since_expiry }} and {{ .Tx.Data.daysSinceExpiry }} | two | empty |
-| @Number of days since the client's last visit, in words | GET /client/clientvisits — StartDateTime of the latest signed-in visit | attribs.days_since_last_visit | {{ .Subscriber.Attribs.days_since_last_visit }} and {{ .Tx.Data.daysSinceLastVisit }} | seven | empty |
-| <%asm_group_unsubscribe_raw_url%> | gap | — | {{ .Tx.Data.unsubscribeUrl }} | https://campaigns.balancemoves.com.au/subscription/form | empty |
-| @Studio phone number, &#124;STUDIO PHONE&#124;, STUDIO_PHONE | gap | attribs.studio_phone | {{ .Subscriber.Attribs.studio_phone }} and {{ .Tx.Data.studioPhone }} | 0424 133 544 | 0424 133 544 |
-| @Studio address | gap | attribs.studio_address | {{ .Subscriber.Attribs.studio_address }} and {{ .Tx.Data.studioAddress }} | 72A-74 Hall Street, Bondi Beach, NSW, 2026 | 72A-74 Hall Street, Bondi Beach, NSW, 2026 |
-| @Agent | gap | — | {{ .Tx.Data.agent }} |  | empty |
-| @Intro Offer Purchase URL | gap | — | {{ .Tx.Data.introOfferUrl }} |  | empty |
-| @Secondary Offer Purchase URL | gap | — | {{ .Tx.Data.secondaryOfferUrl }} |  | empty |
-| [Secondary Offer Display Name] | gap | — | {{ .Tx.Data.secondaryOfferName }} |  | empty |
-| [Secondary Offer Discount Price] | gap | — | {{ .Tx.Data.secondaryOfferDiscountPrice }} |  | empty |
-| [Secondary Offer Price] | gap | — | {{ .Tx.Data.secondaryOfferPrice }} |  | empty |
-| [Secondary Offer Promo Code] | gap | — | {{ .Tx.Data.secondaryOfferPromoCode }} |  | empty |
-| [Secondary Offer Expiration] | gap | — | {{ .Tx.Data.secondaryOfferExpiration }} |  | empty |
+| LoyalSnap field | Field key | Type | Mindbody source | Opt-out | listmonk attrib | Template syntax | Example | Fallback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| *&#124;FNAME&#124;*, [First name], @Client's first name | first_name | string | GET /client/clients — FirstName | — | attribs.first_name | {{ .Subscriber.FirstName }} and {{ .Tx.Data.FirstName }} | Alex | there |
+| [Last name] | last_name | string | GET /client/clients — LastName | — | attribs.last_name | {{ .Subscriber.LastName }} and {{ .Tx.Data.LastName }} | Nguyen | empty |
+| *&#124;EMAIL&#124;* | email | email | GET /client/clients — Email | — | attribs.email | {{ .Subscriber.Email }} and {{ .Tx.Data.Email }} | bondi@balancemoves.com.au | empty |
+| client mobile (Chatwoot phone_number; not a LoyalSnap token) | phone | phone, E.164 | GET /client/clients — MobilePhone | — | attribs.phone | Chatwoot custom_attributes.phone and {{ .Subscriber.Attribs.phone }} | +61412345678 | empty |
+| email opt-out (not a LoyalSnap token) | email_opt_out | boolean | GET /client/clients — SendPromotionalEmails is false | true sets listmonk status blocklisted; false sets enabled. Chatwoot custom_attributes.email_opt_out | attribs.email_opt_out | Chatwoot custom_attributes.email_opt_out and {{ .Subscriber.Attribs.email_opt_out }} | false | false |
+| SMS opt-out (not a LoyalSnap token) | sms_opt_out | boolean | GET /client/clients — SendPromotionalTexts is false | Chatwoot custom_attributes.sms_opt_out. listmonk stores the boolean and does not blocklist for this flag | attribs.sms_opt_out | Chatwoot custom_attributes.sms_opt_out and {{ .Subscriber.Attribs.sms_opt_out }} | false | false |
+| *&#124;STUDIO&#124;*, [Studio], @Name of the client's studio | studio | string | gap | — | attribs.studio | {{ .Subscriber.Attribs.studio }} and {{ .Tx.Data.studio }} | Balance Moves | Balance Moves |
+| *&#124;PACK_NAME&#124;*, @Name of the client's package | pack_name | string | GET /client/clientservices — Name | — | attribs.pack_name | {{ .Subscriber.Attribs.pack_name }} and {{ .Tx.Data.packName }} | 2 Week Intro Pass | your pass |
+| pass end date (expiring automations; no *&#124;DATE&#124;* tag in the export) | pass_end_date | date, YYYY-MM-DD. Messages print 14 Oct 2026 | GET /client/clientservices — ExpirationDate | — | attribs.pass_end_date | {{ .Subscriber.Attribs.pass_end_date }} and {{ .Tx.Data.passEndDate }} | 2026-10-14 | empty |
+| visits (trial expiring copy says how many sessions; the preview hardcodes 5) | visits | integer | GET /client/clientvisits — signed-in visits in the automation's count | — | attribs.visits | {{ .Subscriber.Attribs.visits }} and {{ .Tx.Data.visits }} | 3 | 0 |
+| @Number of credits remaining on the client's current package | credits_remaining | integer | GET /client/clientservices — Remaining | — | attribs.credits_remaining | {{ .Subscriber.Attribs.credits_remaining }} and {{ .Tx.Data.creditsRemaining }} | 2 | empty |
+| @Days since the client's package expiration, in words | days_since_expiry | string, English words | GET /client/clientservices — ExpirationDate, counted against today | — | attribs.days_since_expiry | {{ .Subscriber.Attribs.days_since_expiry }} and {{ .Tx.Data.daysSinceExpiry }} | two | empty |
+| @Number of days since the client's last visit, in words | days_since_last_visit | string, English words | GET /client/clientvisits — StartDateTime of the latest signed-in visit | — | attribs.days_since_last_visit | {{ .Subscriber.Attribs.days_since_last_visit }} and {{ .Tx.Data.daysSinceLastVisit }} | seven | empty |
+| <%asm_group_unsubscribe_raw_url%> | — | url | gap | — | — | {{ .Tx.Data.unsubscribeUrl }} | https://campaigns.balancemoves.com.au/subscription/form | empty |
+| @Studio phone number, &#124;STUDIO PHONE&#124;, STUDIO_PHONE | studio_phone | phone, E.164. Messages print 0424 133 544 | gap | — | attribs.studio_phone | {{ .Subscriber.Attribs.studio_phone }} and {{ .Tx.Data.studioPhone }} | +61424133544 | 0424 133 544 |
+| @Studio address | studio_address | string | gap | — | attribs.studio_address | {{ .Subscriber.Attribs.studio_address }} and {{ .Tx.Data.studioAddress }} | 72A-74 Hall Street, Bondi Beach, NSW, 2026 | 72A-74 Hall Street, Bondi Beach, NSW, 2026 |
+| @Agent | — | string | gap | — | — | {{ .Tx.Data.agent }} | empty | empty |
+| @Intro Offer Purchase URL | — | url | gap | — | — | {{ .Tx.Data.introOfferUrl }} | empty | empty |
+| @Secondary Offer Purchase URL | — | url | gap | — | — | {{ .Tx.Data.secondaryOfferUrl }} | empty | empty |
+| [Secondary Offer Display Name] | — | string | gap | — | — | {{ .Tx.Data.secondaryOfferName }} | empty | empty |
+| [Secondary Offer Discount Price] | — | string | gap | — | — | {{ .Tx.Data.secondaryOfferDiscountPrice }} | empty | empty |
+| [Secondary Offer Price] | — | string | gap | — | — | {{ .Tx.Data.secondaryOfferPrice }} | empty | empty |
+| [Secondary Offer Promo Code] | — | string | gap | — | — | {{ .Tx.Data.secondaryOfferPromoCode }} | empty | empty |
+| [Secondary Offer Expiration] | — | string | gap | — | — | {{ .Tx.Data.secondaryOfferExpiration }} | empty | empty |

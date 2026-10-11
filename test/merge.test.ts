@@ -51,8 +51,14 @@ describe("merge fields", () => {
   it("writes the mapping document from the catalog", () => {
     const doc = renderMergeDoc();
     expect(readFileSync("MERGE_FIELDS.md", "utf8")).toBe(doc);
-    expect(doc).toContain("| Mapped | 9 |");
+    expect(doc).toContain("| Mapped | 12 |");
     expect(doc).toContain("| Gap | 12 |");
+    expect(doc).toContain("| Field key |");
+    expect(doc).toContain("YYYY-MM-DD");
+    expect(doc).toContain("E.164");
+    expect(doc).toContain("email_opt_out");
+    expect(doc).toContain("sms_opt_out");
+    expect(doc).toContain("blocklisted");
     expect(doc).toContain("attribs.first_name");
     expect(doc).toContain("GET /client/clientservices — ExpirationDate");
     expect(doc).toContain("| gap |");
@@ -296,7 +302,7 @@ describe("merge field admin API", () => {
       preview: { FirstName: string; passEndDate: string; visits: number };
     };
     const first = body.fields.find((field) => field.insert === "[First name]");
-    expect(first).toMatchObject({ mindbody: "GET /client/clients — FirstName", attrib: "attribs.first_name", example: "Alex", gap: false });
+    expect(first).toMatchObject({ key: "first_name", type: "string", mindbody: "GET /client/clients — FirstName", attrib: "attribs.first_name", example: "Alex", gap: false });
     const agent = body.fields.find((field) => field.insert === "@Agent");
     expect(agent?.mindbody).toBe("gap");
     expect(agent?.attrib).toBeNull();

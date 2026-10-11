@@ -1,51 +1,51 @@
-import { MERGE_FIELDS } from "../merge/fields";
-
-const PER_SEND = new Set([
-  "pack_name",
-  "pass_end_date",
-  "visits",
-  "credits_remaining",
-  "days_since_expiry",
-  "days_since_last_visit",
-]);
+import { MERGE_FIELDS, renderFieldTable } from "../merge/fields";
 
 export function renderSyncContract(): string {
-  const written = MERGE_FIELDS.filter((field) => field.attrib);
-  const txOnly = MERGE_FIELDS.filter((field) => !field.attrib);
-  const header = "| listmonk key | Mindbody source | Example | Who fills it |";
-  const rule = "| --- | --- | --- | --- |";
-  const rows = written.map((field) => {
-    const source = field.gap ? "gap" : field.mindbody;
-    const who = PER_SEND.has(field.attrib)
-      ? "Shared sync writes attribs." + field.attrib + ". This worker also sends the live value in Tx.Data."
-      : "Shared sync writes attribs." + field.attrib + ".";
-    return `| ${cell(`attribs.${field.attrib}`)} | ${cell(source)} | ${cell(field.example || "empty")} | ${cell(who)} |`;
-  });
-  const txRows = txOnly.map((field) => `| ${cell(field.syntax)} | ${cell("gap")} | ${cell(field.example || "empty")} | This worker, on each send. Not a subscriber attribute. |`);
-  return `# Listmonk contact sync
+  const keys = MERGE_FIELDS.filter((field) => field.key).map((field) => field.key);
+  return `# Shared contact fields
 
-The shared Mindbody contact sync is the only writer of listmonk subscribers. It is the same sync that feeds Chatwoot. This worker looks up a subscriber by email and sends the message. It does not create or update subscribers while \`CONTACT_WRITE_MODE\` is \`shared_sync\`, which is the default.
+Spec only. bm-automations does not run the contact sync and does not talk to Chatwoot.
 
-If listmonk has no subscriber for that email, the email is not sent. The worker logs \`send_skipped\` with reason \`subscriber_missing\` and records the send log as \`skipped_no_subscriber\`.
+The shared Mindbody contact sync is the only writer of listmonk subscribers and Chatwoot contacts. One field list is used for both. The field key is the same string in Chatwoot \`contact.custom_attributes\` and listmonk subscriber \`attribs\`. The table is \`MERGE_FIELDS.md\`. It is repeated below so this file can be read on its own.
 
-\`CONTACT_WRITE_MODE=self\` is for dev and test. A write runs only when \`DEV_MODE\` is true and the address is on \`SEND_ALLOWLIST\`. Any other address is read the same way as \`shared_sync\`. A \`self\` write creates the subscriber when missing and updates \`attribs\` when the row already exists. A copy recipient is created without replacing that inbox's attributes.
+## Parallel writes
 
-## What the shared sync must write
+A contact change writes Chatwoot and listmonk in parallel. Each destination has its own retry queue. A listmonk outage retries on the listmonk queue only. A Chatwoot outage retries on the Chatwoot queue only. One destination being down does not block, delay, or roll back the other. A destination that already succeeded is not written again when the other destination retries.
 
-Set the listmonk subscriber \`name\` to the Mindbody first and last name, separated by a space. \`{{ .Subscriber.FirstName }}\` and \`{{ .Subscriber.LastName }}\` come from that name. \`attribs.first_name\` is the Mindbody first name, including blank. Do not store the SMS fallback "there" on the subscriber.
+Upserts are idempotent. Listmonk matches the subscriber by email. Chatwoot matches the contact by email, then by E.164 \`phone_number\`.
 
-Write every key below. Values that change between sends are also placed in \`POST /api/tx\` \`data\` by this worker, so a template can use \`{{ .Tx.Data.passEndDate }}\` even when the stored attribute is older.
+## Destinations
 
-${[header, rule, ...rows].join("\n")}
+Listmonk built-in fields are \`email\` and \`name\`. \`name\` is the Mindbody first and last name separated by a space, so \`{{ .Subscriber.FirstName }}\` and \`{{ .Subscriber.LastName }}\` resolve. \`attribs.first_name\` is the Mindbody first name, including blank. Do not store the message fallback "there".
 
-## Sent in Tx.Data, not stored by the sync
+Chatwoot built-in fields are \`name\`, \`email\`, and \`phone_number\`. \`phone_number\` is the client mobile in E.164. The same keys also go in \`custom_attributes\`.
 
-${["| Template field | Mindbody source | Example | Who fills it |", rule, ...txRows].join("\n")}
+Every other key in the table is written only as \`attribs.{key}\` and \`custom_attributes.{key}\`.
 
-\`preferencesUrl\` is the same address as \`unsubscribeUrl\`. Studio name, phone, and address are gaps in Mindbody. Write the examples above: Balance Moves, 0424 133 544, and 72A-74 Hall Street, Bondi Beach, NSW, 2026.
+## Formats
+
+Dates are \`YYYY-MM-DD\`. \`pass_end_date\` \`2026-10-14\` is the stored value. This worker's message text still prints \`14 Oct 2026\`.
+
+Phones are E.164. \`phone\` \`+61412345678\` is the client mobile from Mindbody \`MobilePhone\`. \`studio_phone\` \`+61424133544\` is the studio number. Messages still print \`0424 133 544\`.
+
+## Opt-out
+
+\`email_opt_out\` is true when Mindbody \`SendPromotionalEmails\` is false. True sets the listmonk subscriber status to \`blocklisted\`. False sets it to \`enabled\`. The same boolean is \`attribs.email_opt_out\` and Chatwoot \`custom_attributes.email_opt_out\`.
+
+\`sms_opt_out\` is true when Mindbody \`SendPromotionalTexts\` is false. Chatwoot stores \`custom_attributes.sms_opt_out\` and must not text that contact. Listmonk stores \`attribs.sms_opt_out\` and does not blocklist for this flag. Listmonk has no SMS subscription.
+
+## This worker
+
+While \`CONTACT_WRITE_MODE\` is \`shared_sync\` (the default), this worker looks up the subscriber by email and sends the message. If listmonk has no row, it logs \`send_skipped\` with reason \`subscriber_missing\` and records \`skipped_no_subscriber\`. It does not create or update subscribers, and it does not call Chatwoot.
+
+\`CONTACT_WRITE_MODE=self\` is for dev and test. A write runs only when \`DEV_MODE\` is true and the address is on \`SEND_ALLOWLIST\`.
+
+Per-send values still go in \`POST /api/tx\` \`data\`, including \`passEndDate\`, \`visits\`, \`creditsRemaining\`, \`daysSinceExpiry\`, and \`daysSinceLastVisit\`. Rows with an empty field key are template data only. The sync does not store them.
+
+## Field list
+
+${keys.length} shared keys.
+
+${renderFieldTable()}
 `;
-}
-
-function cell(value: string): string {
-  return value.replaceAll("|", "&#124;");
 }

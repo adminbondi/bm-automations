@@ -1,6 +1,6 @@
 import { countVisits, selectPassExpiry, selectRemaining, evaluateAutomation, type EvalContext, type Decision } from "../automations/engine";
 import { dedupeKey, gateSend, unsubscribeUrl, withUnsubscribe, type GateResult } from "../automations/gate";
-import { renderSms } from "../sms";
+import { buildMerge, renderMerge } from "../merge/values";
 import type { Automation, Channel, ServiceRecord, Visit } from "../automations/types";
 
 export type PlanFacts = {
@@ -23,6 +23,7 @@ export type PlanFacts = {
   email: string | null;
   phone: string | null;
   firstName: string | null;
+  lastName: string | null;
   studioName: string;
   devMode: boolean;
   dryRun: boolean;
@@ -52,6 +53,7 @@ export type GatedPlan = {
   messageText: string | null;
   renderedMessage: string | null;
   data: Record<string, unknown>;
+  attribs: Record<string, string>;
   dedupeKey: string | null;
   copy: boolean;
 };
@@ -126,10 +128,25 @@ function gatePlan(
   facts: PlanFacts,
   recipient: "primary" | "copy",
 ): GatedPlan {
+  const previewUrl = unsubscribeUrl(facts.listmonkBaseUrl, null);
+  const bag = buildMerge({
+    automation,
+    firstName: facts.firstName,
+    lastName: facts.lastName,
+    email: facts.email,
+    studioName: facts.studioName,
+    todaySydney: facts.todaySydney,
+    services: facts.services,
+    visits: facts.visits,
+    unsubscribeUrl: previewUrl,
+  });
   const renderedMessage = automation.channel === "sms" && automation.messageText
-    ? renderSms(automation.messageText, facts.firstName, facts.studioName)
+    ? renderMerge(automation.messageText, bag)
     : null;
   const email = recipient === "copy" ? automation.extraRecipient : facts.email;
+  const data = automation.channel === "email"
+    ? withUnsubscribe({ ...bag.data, ...decision.data }, previewUrl)
+    : decision.data;
   if (decision.action !== "send") {
     return {
       automation,
@@ -147,7 +164,8 @@ function gatePlan(
       templateId: decision.templateId,
       messageText: decision.messageText,
       renderedMessage,
-      data: decision.data,
+      data,
+      attribs: bag.attribs,
       dedupeKey: null,
       copy: recipient === "copy",
     };
@@ -167,9 +185,6 @@ function gatePlan(
     withinQuietHours: facts.withinQuietHours,
     quietAction: facts.quietAction,
   });
-  const data = automation.channel === "email"
-    ? withUnsubscribe(decision.data, unsubscribeUrl(facts.listmonkBaseUrl, null))
-    : decision.data;
   return {
     automation,
     phase,
@@ -187,6 +202,7 @@ function gatePlan(
     messageText: decision.messageText,
     renderedMessage,
     data,
+    attribs: bag.attribs,
     dedupeKey: key,
     copy: recipient === "copy",
   };

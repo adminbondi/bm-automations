@@ -7,6 +7,8 @@ import { runScheduled } from "../pipeline/cron";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
 import { noteListmonkCheck, readPublicSettings, writeSettings, type SettingsPatch } from "../settings/service";
+import { MERGE_FIELDS } from "../merge/fields";
+import { exampleMerge } from "../merge/values";
 import { withReplyStop } from "../sms";
 import { automationFromBody, mergeAutomation } from "./automation-body";
 import { finishGoogleLogin, startGoogleLogin } from "./google";
@@ -134,6 +136,22 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
         body: withReplyStop("Balance Moves automations test. No client was contacted.", loaded.connections.appendReplyStop),
       });
       return Response.json({ ok: true });
+    }
+    if (url.pathname === "/admin/merge-fields" && request.method === "GET") {
+      const preview = exampleMerge();
+      return Response.json({
+        fields: MERGE_FIELDS.map((field) => ({
+          loyalSnap: field.loyalSnap,
+          mindbody: field.gap ? "gap" : field.mindbody,
+          attrib: field.attrib ? `attribs.${field.attrib}` : null,
+          syntax: field.syntax,
+          example: field.example,
+          fallback: field.fallback,
+          gap: field.gap,
+          insert: field.insert,
+        })),
+        preview: preview.data,
+      });
     }
     if (url.pathname === "/admin/dry-run" && request.method === "POST") {
       const result = await previewBody(await request.text(), env, deps);

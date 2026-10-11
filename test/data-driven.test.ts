@@ -31,6 +31,7 @@ describe("rules come from the row", () => {
       email: "ada@example.com",
       phone: null,
       firstName: "Ada",
+      lastName: null,
       studioName: "Balance Moves",
       devMode: true,
       dryRun: true,

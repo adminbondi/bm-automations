@@ -137,6 +137,7 @@ export async function factsFromClient(input: {
     email,
     phone: client.phone,
     firstName: client.firstName,
+    lastName: client.lastName,
     studioName: loaded.config.studioName,
     devMode: loaded.config.devMode,
     dryRun: input.dryRun,

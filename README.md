@@ -23,6 +23,12 @@ External leads are not a Mindbody event. `POST /webhooks/lead` accepts the same 
 
 Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.ts`. They do not send. The red-flag lane is a gap until owners set how many days count as low usage. Static client-list titles are gaps: the export had titles only.
 
+## Merge fields
+
+`MERGE_FIELDS.md` lists every LoyalSnap token from the automation export and the dashboard scripts. On a send the worker reads the mapped values from the Mindbody snapshot already loaded for that client, writes them onto the listmonk subscriber (`PUT /api/subscribers/{id}` `attribs`), and sends the same values in `POST /api/tx` `data`. SMS replaces the token in the message. A missing first name becomes "there" in the text and in `Tx.Data.FirstName`. The subscriber attribute stays the Mindbody value, including blank. Studio phone and address fill from the worker. Offer prices, the agent name, and the purchase URLs are gaps and render as empty.
+
+`GET /admin/merge-fields` returns that list plus example values. The text editor has an Insert field control that drops the token into the message. The phone preview uses the example values.
+
 ## Run locally
 
 ```bash
@@ -57,6 +63,7 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 | POST | `/admin/settings/test/listmonk` | Authenticated listmonk check |
 | POST | `/admin/settings/test/twilio` | Test SMS to an allowlisted number |
 | POST | `/admin/dry-run` | Plan a webhook body without sending |
+| GET | `/admin/merge-fields` | Merge-field catalog and example preview values |
 
 PATCH settings omit a field to keep it. Send an empty string to clear it. Stored secrets are AES-GCM ciphertext. The key is the Worker secret `SETTINGS_ENCRYPTION_KEY` (SHA-256, then AES-GCM). The API returns `connected: true/false` and never the secret or the ciphertext.
 

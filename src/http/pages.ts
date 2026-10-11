@@ -4,6 +4,8 @@ import { TEMPLATE_SUBJECTS, templateLabel } from "../automations/subjects";
 import type { Automation, SendLogRow } from "../automations/types";
 import { escapeHtml } from "./layout";
 import type { PublicSettings } from "../settings/service";
+import { MERGE_FIELDS } from "../merge/fields";
+import { exampleMerge, substitutionRules } from "../merge/values";
 import { REPLY_STOP_FOOTER } from "../sms";
 import { formatSydney } from "../time";
 
@@ -90,11 +92,12 @@ export function editPage(automation: Automation | null, settings: PublicSettings
 </div></label></div></div>
 <div class="card" style="margin:0"><h2>Message</h2>
 <div id="emailbox"${channel === "email" ? "" : " hidden"}><label>listmonk template<select name="templateId" id="template">${templates}</select></label>
-<p class="small muted">Edit the design in listmonk. Subject and from address come from the template and Settings.</p>
+<p class="small muted">Edit the design in listmonk. Subject and from address come from the template and Settings. Templates read {{ .Tx.Data.FirstName }} and {{ .Subscriber.Attribs.pack_name }}. The full list is GET /admin/merge-fields.</p>
 <div class="preview"><div class="hd">Subject: <span id="subject">${escapeHtml(subject)}</span><br>From: ${fromLine}</div>
 <div class="mail"><div class="logo">BALANCE MOVES</div><b>Hi Alex,</b><p>Welcome to your Intro Pass! Here's how to book your first class…</p><p class="muted small">Example client data</p></div></div></div>
 <div id="textbox"${channel === "sms" ? "" : " hidden"}><label>Text message<textarea name="messageText" id="sms">${escapeHtml(message)}</textarea></label>
-<div class="counter"><span id="cc"></span><span>Merge tags: {{first_name}} · "Reply STOP" footer: ${stop} (<a href="/settings">Settings</a>)</span></div>
+<label class="small">Insert field<select id="insert-field"><option value="">Choose a field…</option>${MERGE_FIELDS.map((field) => `<option value="${escapeHtml(field.insert)}">${escapeHtml(field.insert)}</option>`).join("")}</select></label>
+<div class="counter"><span id="cc"></span><span>"Reply STOP" footer: ${stop} (<a href="/settings">Settings</a>)</span></div>
 <p class="small muted" style="margin-bottom:6px">Phone preview <span class="ex">example</span></p><div class="bubble" id="bub"></div></div></div>
 <div class="card" style="margin:0"><h2>When and who</h2>
 <label>Trigger<select name="trigger">${triggerOptions(trigger)}</select></label><br>
@@ -113,11 +116,14 @@ export function editScript(appendReplyStop: boolean): string {
   const gsm = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà^{}\\[~]|€";
   const extended = "^{}\\[~]|€";
   return `const subjects=${JSON.stringify(TEMPLATE_SUBJECTS)};const footer=${JSON.stringify(REPLY_STOP_FOOTER)};const stop=${appendReplyStop ? "true" : "false"};const G=${JSON.stringify(gsm)};const ext=${JSON.stringify(extended)};
+const rules=${JSON.stringify(substitutionRules())};const sample=${JSON.stringify(exampleMerge().data)};
 const sms=document.getElementById("sms");const cc=document.getElementById("cc");const bub=document.getElementById("bub");
 const emailbox=document.getElementById("emailbox");const textbox=document.getElementById("textbox");
-function preview(raw){const v=raw.replace(/\\{\\{\\s*\\.?\\s*Subscriber\\.FirstName\\s*\\}\\}/gi,"Alex").replace(/\\{\\{\\s*first_name\\s*\\}\\}/gi,"Alex").replace(/\\[first name\\]/gi,"Alex").replace(/\\[studio\\]/gi,"Balance Moves");return stop&&!/reply stop/i.test(v)?v+footer:v}
+function preview(raw){let v=raw;for(const rule of rules){const repl=sample[rule.key]==null?"":String(sample[rule.key]);v=v.replace(new RegExp(rule.source,rule.flags),repl)}v=v.replace(/[ \\t]{2,}/g," ").replace(/ +([,.;!?])/g,"$1").trim();return stop&&!/reply stop/i.test(v)?v+footer:v}
 function upd(){if(!sms||!cc||!bub)return;const v=preview(sms.value);const gsm=[...v].every(c=>G.includes(c));let n=0;for(const c of v)n+=ext.includes(c)?2:1;if(!gsm)n=[...v].length;const one=gsm?160:70,multi=gsm?153:67;const s=n===0?0:(n<=one?1:Math.ceil(n/multi));cc.textContent=n+" characters · "+s+" segment"+(s===1?"":"s")+" · "+(gsm?"GSM-7":"Unicode")+" · ≈ "+s+" × Twilio price";bub.textContent=v}
 if(sms){sms.addEventListener("input",upd);upd()}
+const picker=document.getElementById("insert-field");
+picker?.addEventListener("change",()=>{if(!sms||!picker.value)return;const start=sms.selectionStart??sms.value.length;const end=sms.selectionEnd??start;sms.setRangeText(picker.value,start,end,"end");picker.value="";upd();sms.focus()});
 function sync(){const c=document.querySelector('input[name=channel]:checked');if(!c||!emailbox||!textbox)return;emailbox.hidden=c.value!=="email";textbox.hidden=c.value!=="sms"}
 document.getElementById("seg")?.addEventListener("change",sync);
 if(location.hash==="#email"){const el=document.querySelector('input[name=channel][value=email]');if(el)el.checked=true}

@@ -13,6 +13,7 @@ export type Subscriber = {
   email: string;
   status: string;
   listIds: number[];
+  attribs: Record<string, string>;
 };
 
 export class ListmonkClient {
@@ -50,9 +51,12 @@ export class ListmonkClient {
     return row ? mapSubscriber(row) : null;
   }
 
-  async ensureSubscriber(input: { email: string; name: string }): Promise<Subscriber> {
+  async ensureSubscriber(input: { email: string; name: string; attribs?: Record<string, string> }): Promise<Subscriber> {
     const existing = await this.findSubscriber(input.email);
-    if (existing) return existing;
+    if (existing) {
+      if (input.attribs) await this.writeAttribs(existing, input.email, input.name, input.attribs);
+      return existing;
+    }
     if (!this.connection.listId) throw new Error("listmonk_list_id_missing");
     const response = await this.fetchImpl(`${this.connection.baseUrl}/api/subscribers`, {
       method: "POST",
@@ -63,6 +67,7 @@ export class ListmonkClient {
         status: "enabled",
         lists: [Number(this.connection.listId)],
         preconfirm_subscriptions: true,
+        ...(input.attribs ? { attribs: input.attribs } : {}),
       }),
     });
     if (response.status === 409) {
@@ -99,6 +104,32 @@ export class ListmonkClient {
     if (!response.ok) throw new Error(`listmonk_tx_${response.status}`);
   }
 
+  private async writeAttribs(
+    subscriber: Subscriber,
+    email: string,
+    name: string,
+    attribs: Record<string, string>,
+  ): Promise<void> {
+    const listId = Number(this.connection.listId);
+    const lists = subscriber.listIds.length > 0
+      ? subscriber.listIds
+      : Number.isFinite(listId) && listId > 0
+        ? [listId]
+        : [];
+    const response = await this.fetchImpl(`${this.connection.baseUrl}/api/subscribers/${subscriber.id}`, {
+      method: "PUT",
+      headers: this.headers(),
+      body: JSON.stringify({
+        email,
+        name,
+        status: subscriber.status || "enabled",
+        lists,
+        attribs: { ...subscriber.attribs, ...attribs },
+      }),
+    });
+    if (!response.ok) throw new Error(`listmonk_update_${response.status}`);
+  }
+
   private headers(): Headers {
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
@@ -114,6 +145,7 @@ function mapSubscriber(value: unknown): Subscriber {
     email?: string;
     status?: string;
     lists?: { id?: number }[];
+    attribs?: unknown;
   };
   return {
     id: row.id ?? 0,
@@ -121,5 +153,16 @@ function mapSubscriber(value: unknown): Subscriber {
     email: row.email ?? "",
     status: row.status ?? "",
     listIds: (row.lists ?? []).map((list) => list.id).filter((id): id is number => typeof id === "number"),
+    attribs: stringAttribs(row.attribs),
   };
+}
+
+function stringAttribs(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "string") out[key] = item;
+    else if (typeof item === "number" || typeof item === "boolean") out[key] = String(item);
+  }
+  return out;
 }

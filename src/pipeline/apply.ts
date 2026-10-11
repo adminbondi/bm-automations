@@ -3,7 +3,8 @@ import type { JobPayload } from "../automations/types";
 import type { Repo } from "../db/repo";
 import type { ListmonkClient } from "../listmonk/client";
 import { log } from "../log";
-import { renderSms, withReplyStop } from "../sms";
+import { buildMerge, renderMerge } from "../merge/values";
+import { withReplyStop } from "../sms";
 import type { TwilioClient } from "../twilio/client";
 import type { GatedPlan } from "./plan";
 
@@ -146,7 +147,11 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
   if (!email || plan.templateId === null) return "blocked";
   if (await options.repo.hasSent(key)) return "blocked";
   const name = [options.firstName, options.lastName].filter(Boolean).join(" ") || email;
-  const subscriber = await options.listmonk.ensureSubscriber({ email, name });
+  const subscriber = await options.listmonk.ensureSubscriber({
+    email,
+    name,
+    ...(plan.copy ? {} : { attribs: plan.attribs }),
+  });
   if (options.listmonk.isSuppressed(subscriber)) {
     await options.repo.recordSend({
       dedupeKey: key,
@@ -161,7 +166,7 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
     });
     return "blocked";
   }
-  const data = withUnsubscribe(plan.decision.data, unsubscribeUrl(options.listmonkBaseUrl, subscriber.uuid));
+  const data = withUnsubscribe(plan.data, unsubscribeUrl(options.listmonkBaseUrl, subscriber.uuid));
   await options.listmonk.sendTx({ email, templateId: plan.templateId, data });
   await options.repo.recordSend({
     dedupeKey: key,
@@ -183,7 +188,16 @@ async function deliverSms(plan: GatedPlan, options: ApplyOptions, key: string): 
   const template = plan.messageText;
   if (!phone || !template) return "blocked";
   if (await options.repo.hasSent(key)) return "blocked";
-  const rendered = plan.renderedMessage ?? renderSms(template, options.firstName, options.studioName);
+  const rendered = plan.renderedMessage ?? renderMerge(template, buildMerge({
+    automation: plan.automation,
+    firstName: options.firstName,
+    lastName: options.lastName,
+    email: plan.email,
+    studioName: options.studioName,
+    todaySydney: options.todaySydney,
+    services: [],
+    visits: [],
+  }));
   const body = withReplyStop(rendered, options.appendReplyStop === true);
   await options.twilio.sendSms({ to: phone, body });
   await options.repo.recordSend({

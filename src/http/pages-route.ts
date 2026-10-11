@@ -4,6 +4,7 @@ import { addDays, sydneyDate } from "../time";
 import { normalizePhone } from "../phone";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
 import { noteListmonkCheck, readPublicSettings, writeSettings } from "../settings/service";
+import { exampleMerge, renderMerge } from "../merge/values";
 import { withReplyStop } from "../sms";
 import { log } from "../log";
 import { html } from "./google";
@@ -240,15 +241,17 @@ async function sendTest(
       if (loaded.withinQuietHours) return redirect(`/automations/${id}?error=quiet_hours`);
       if (!loaded.twilio.fromAddress()) return redirect(`/automations/${id}?error=twilio_not_connected`);
       const text = automation.messageText ?? "";
+      const sample = exampleMerge();
+      sample.data.studio = loaded.config.studioName || "Balance Moves";
       await loaded.twilio.sendSms({
         to,
-        body: withReplyStop(text.replace(/\[first name\]/gi, "Alex").replace(/\[studio\]/gi, loaded.config.studioName), loaded.connections.appendReplyStop),
+        body: withReplyStop(renderMerge(text, sample), loaded.connections.appendReplyStop),
       });
       return redirect(`/automations/${id}?notice=twilio_ok`);
     }
     if (!loaded.config.emailAllowlist.includes(email)) return redirect(`/automations/${id}?error=not_allowlisted`);
     if (!automation.templateId || !loaded.connections.listmonkApiToken) return redirect(`/automations/${id}?error=listmonk_not_connected`);
-    await loaded.listmonk.sendTx({ email, templateId: automation.templateId, data: { FirstName: "Alex", visits: 1 } });
+    await loaded.listmonk.sendTx({ email, templateId: automation.templateId, data: exampleMerge().data });
     return redirect(`/automations/${id}?notice=email_ok`);
   } catch (error) {
     log({ event: "admin_test_failed", message: error instanceof Error ? error.message : "test_failed" });

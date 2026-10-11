@@ -39,6 +39,19 @@ describe("contact write mode", () => {
     expect(doc).toContain("ChatwootContacts");
     expect(doc).toContain("mapClient");
     expect(doc).toContain("on hold");
+    expect(doc).toContain("One-time rename");
+    expect(doc).toContain("Member status");
+    expect(doc).toContain("Intro expires");
+    expect(doc).toContain("Intro days left");
+    expect(doc).toContain("| Mindbody ID | `mindbody_id` | `mindbody_id` |");
+    expect(doc).toContain("| Packs | `packs` | `mindbody_packs` |");
+    const introHeading = doc.indexOf("### Intro");
+    const fieldList = doc.indexOf("## Field list");
+    expect(introHeading).toBeGreaterThan(doc.indexOf("### Packs"));
+    expect(fieldList).toBeGreaterThan(introHeading);
+    expect(doc.slice(introHeading, fieldList)).toContain("Intro expires");
+    expect(doc.slice(introHeading, fieldList)).toContain("Intro days left");
+    expect(doc.slice(0, introHeading)).not.toContain("| Intro expires |");
     for (const field of MERGE_FIELDS) {
       if (field.attrib) expect(doc).toContain(`attribs.${field.attrib}`);
     }

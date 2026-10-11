@@ -16,9 +16,10 @@ export type TriggerChoice =
   | "birthday-month"
   | "every-nth"
   | "credits"
+  | "under-credits"
   | "visit-window";
 
-export type RuleTrigger = "since-visit" | "birthday" | "birthday-month" | "every-nth" | "credits" | "visit-window" | "lead";
+export type RuleTrigger = "since-visit" | "birthday" | "birthday-month" | "every-nth" | "credits" | "under-credits" | "visit-window" | "lead";
 
 export const RULE_FIELDS: Record<RuleTrigger, { input: "number" | "date"; label: string; help: string }> = {
   "since-visit": {
@@ -45,6 +46,11 @@ export const RULE_FIELDS: Record<RuleTrigger, { input: "number" | "date"; label:
     input: "number",
     label: "Credits remaining",
     help: "Sends when the current pass has this many credits left.",
+  },
+  "under-credits": {
+    input: "number",
+    label: "Under this many credits",
+    help: "Sends when the current pack has fewer credits than this number. The booking or visit payload's remaining count is enough.",
   },
   "visit-window": {
     input: "number",
@@ -95,6 +101,7 @@ export function derivedTrigger(automation: Automation): TriggerChoice {
   if (automation.timingKind === "birthday_day") return "birthday";
   if (automation.timingKind === "birthday_month_start") return "birthday-month";
   if (automation.skipRules.everyNthVisit != null) return "every-nth";
+  if (automation.filters.maxRemaining != null && automation.filters.exactRemaining == null) return "under-credits";
   if (automation.filters.exactRemaining != null) return "credits";
   if (automation.skipRules.visitWindowDays != null) return "visit-window";
   if (events.includes("client.created") && events.includes("classRosterBooking.created")) return "classpass";
@@ -250,6 +257,16 @@ function applyRule(automation: Automation, trigger: RuleTrigger, raw: string): s
     automation.skipRules.repeat = automation.skipRules.repeat ?? "yearly";
     return null;
   }
+  if (trigger === "under-credits") {
+    if (number < 1) return "invalid_offset";
+    automation.triggerEvents = ["classRosterBooking.created", "classRosterBookingStatus.updated"];
+    automation.scheduleOnEvents = [];
+    automation.timingKind = "immediate";
+    automation.timingOffsetDays = null;
+    delete automation.filters.signedInStatus;
+    automation.filters.maxRemaining = number - 1;
+    return null;
+  }
   if (trigger === "lead") {
     if (number === 0) {
       automation.triggerEvents = ["lead.created"];
@@ -285,7 +302,7 @@ function clearRuleExtras(automation: Automation, keep?: RuleTrigger): void {
   if (keep !== "every-nth") delete automation.skipRules.everyNthVisit;
   if (keep !== "credits") delete automation.filters.exactRemaining;
   delete automation.filters.minRemaining;
-  delete automation.filters.maxRemaining;
+  if (keep !== "under-credits") delete automation.filters.maxRemaining;
   if (keep !== "visit-window") {
     delete automation.skipRules.visitWindowDays;
     delete automation.skipRules.minVisitsInWindow;

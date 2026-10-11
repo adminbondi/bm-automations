@@ -2,6 +2,7 @@ import { countVisits, lastVisitDate, selectPassExpiry, selectRemaining } from ".
 import type { Automation, ServiceRecord, Visit } from "../automations/types";
 import { nameMatchesTokens } from "../names";
 import { daysUntil } from "../time";
+import { sharedContactAttribs } from "@balancemoves/contacts-core";
 import { MERGE_FIELDS, STUDIO_ADDRESS, STUDIO_PHONE } from "./fields";
 
 const WORDS = [
@@ -21,6 +22,7 @@ export type MergeInput = {
   services: ServiceRecord[];
   visits: Visit[];
   unsubscribeUrl?: string | null;
+  clientId?: string | null;
 };
 
 export type MergeBag = {
@@ -78,6 +80,17 @@ export function buildMerge(input: MergeInput): MergeBag {
     days_since_last_visit: String(data.daysSinceLastVisit),
     studio_phone: STUDIO_PHONE,
     studio_address: STUDIO_ADDRESS,
+    ...sharedContactAttribs({
+      clientId: input.clientId,
+      today: input.todaySydney,
+      services: input.services.map((service) => ({
+        name: service.name,
+        productId: service.productId,
+        remaining: service.remaining,
+        current: service.current,
+        expiration: service.expirationSydney,
+      })),
+    }),
   };
   return { attribs, data };
 }

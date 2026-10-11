@@ -60,13 +60,13 @@ export function renderCoverage(): string {
   const automations = automationAudit();
   return `# LoyalSnap coverage
 
-Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 71 automations, 19 dashboard lanes, dynamic client lists, and the static client-list titles). Every automation below is a row in D1. Rows that were off in LoyalSnap are seeded with enabled = false.
+Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 19 dashboard lanes, dynamic client lists, and the static client-list titles). ${automations.length} automations are rows in D1, including the red-flag credits rule. Rows that were off are seeded with enabled = false.
 
 ## Summary
 
 | Set | Covered | Gap |
 | --- | ---: | ---: |
-| Automations (71) | ${counts.automationsCovered} | ${counts.automationsGap} |
+| Automations (${automations.length}) | ${counts.automationsCovered} | ${counts.automationsGap} |
 | Dashboard lanes (19) | ${counts.lanesCovered} | ${counts.lanesGap} |
 | Dynamic client lists (13) | ${counts.dynamicCovered} | ${counts.dynamicGap} |
 | Static client lists (${STATIC_LISTS.length}) | ${counts.staticCovered} | ${counts.staticGap} |

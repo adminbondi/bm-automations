@@ -4,7 +4,7 @@ import { testRepo } from "./helpers";
 
 describe("seeded automations", () => {
   it("ships every row disabled, with the nine templates and four texts", async () => {
-    expect(SEED_AUTOMATIONS).toHaveLength(71);
+    expect(SEED_AUTOMATIONS).toHaveLength(72);
     expect(SEED_AUTOMATIONS.every((row) => row.enabled === false)).toBe(true);
     expect(SEED_AUTOMATIONS.slice(0, 9).map((row) => row.templateId)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13]);
     const repo = testRepo();

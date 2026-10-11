@@ -4,7 +4,8 @@ import { parseMindbodyEvent } from "../mindbody/events";
 import { log } from "../log";
 import { applyPlans } from "./apply";
 import { planAutomations, type GatedPlan } from "./plan";
-import { eventPayload, factsFromClient, loadRuntime, rememberClient, takeSnapshot, type AppDeps, type Loaded } from "./runtime";
+import { loadClientSnapshot } from "./snapshot";
+import { eventPayload, factsFromClient, loadRuntime, rememberClient, type AppDeps, type Loaded } from "./runtime";
 
 export type WebhookResult = {
   status: number;
@@ -69,7 +70,14 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
     return { status: 200, body: { ignored: true, reason: "no_client" } };
   }
   try {
-    const snapshot = await takeSnapshot(loaded, deps, event.clientId);
+    const automations = await loaded.repo.listAutomations();
+    const snapshot = await loadClientSnapshot({
+      host: loaded,
+      deps,
+      clientId: event.clientId,
+      event,
+      automations,
+    });
     const client = await rememberClient(loaded.repo, event.clientId, snapshot, event, loaded.now, !readOnly);
     const dryRun = readOnly || loaded.config.dryRun;
     const facts = await factsFromClient({
@@ -83,7 +91,6 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
       windowAlreadyMatched: false,
       dryRun,
     });
-    const automations = await loaded.repo.listAutomations();
     const plans = planAutomations(automations, facts);
     if (!readOnly) {
       await applyPlans(plans, {

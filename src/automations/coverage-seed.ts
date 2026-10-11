@@ -739,6 +739,25 @@ const SPECS: Spec[] = [
       detail: "D1 birthday-day-email. timing birthday_day. Template id unset.",
     },
   },
+  {
+    id: 72,
+    key: "red-flag-under-3-credits",
+    name: "Red flag, under 3 credits",
+    channel: "email",
+    triggerEvents: ["classRosterBooking.created", "classRosterBookingStatus.updated"],
+    timingKind: "immediate",
+    filters: { maxRemaining: 2 },
+    notes: "Off. Thiago: red flag, low member usage is credits, not days. Fires when the pack has fewer than 3 credits (maxRemaining 2). The booking or visit payload remaining count is enough, so this row does not call Mindbody. No listmonk template until an owner sets one. Enabling it before that holds the job with template_missing.",
+    audit: {
+      funnel: "Class packs",
+      loyalSnap: "off",
+      trigger: "class booking or visit",
+      filters: "fewer than 3 credits remaining",
+      delay: "immediately",
+      stop: "one send per client; stays off",
+      detail: "D1 red-flag-under-3-credits. maxRemaining 2 from the webhook remaining count. Enabled false. No template.",
+    },
+  },
 ];
 
 export const COVERAGE_AUTOMATIONS: Automation[] = SPECS.map(row);

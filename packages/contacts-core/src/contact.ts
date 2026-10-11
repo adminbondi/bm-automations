@@ -1,6 +1,7 @@
 import { daysBetween, toIsoDate } from "./dates";
 import { STUDIO_ADDRESS, STUDIO_PHONE_E164 } from "./fields";
 import { normalizePhone } from "./phone";
+import { sharedContactAttribs, type SharedService } from "./shared-attribs";
 
 const WORDS = [
   "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
@@ -12,6 +13,9 @@ export type ContactService = {
   expiration?: string | null;
   remaining?: number | null;
   current?: boolean;
+  productId?: number | null;
+  activeDate?: string | null;
+  returned?: boolean | null;
 };
 
 export type ContactVisit = {
@@ -75,6 +79,12 @@ export function mapClient(client: Record<string, unknown>, extras: ContactExtras
     days_since_last_visit: sinceVisit != null && sinceVisit >= 0 ? inWords(sinceVisit) : "",
     studio_phone: STUDIO_PHONE_E164,
     studio_address: STUDIO_ADDRESS,
+    ...sharedContactAttribs({
+      clientId: clientIdOf(client),
+      active: typeof client.Active === "boolean" ? client.Active : null,
+      services: (extras.services ?? []).map(sharedService),
+      today: extras.today,
+    }),
   };
   return { email, phone, firstName, lastName, name, emailOptOut, smsOptOut, attribs };
 }
@@ -88,4 +98,22 @@ function currentService(services: ContactService[]): ContactService | null {
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function clientIdOf(client: Record<string, unknown>): string {
+  if (typeof client.Id === "number" || typeof client.Id === "string") return String(client.Id).trim();
+  if (typeof client.ClientId === "number" || typeof client.ClientId === "string") return String(client.ClientId).trim();
+  return "";
+}
+
+function sharedService(service: ContactService): SharedService {
+  return {
+    name: service.name,
+    productId: service.productId,
+    remaining: service.remaining,
+    current: service.current,
+    expiration: service.expiration,
+    activeDate: service.activeDate,
+    returned: service.returned,
+  };
 }

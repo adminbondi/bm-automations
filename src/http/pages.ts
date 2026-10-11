@@ -222,6 +222,7 @@ export function settingsPage(settings: PublicSettings, error: string | null, not
   return `${flash(error)}${notice ? `<div class="banner">${escapeHtml(noticeText(notice))}</div>` : ""}
 <header><div><h1>Settings</h1><p class="muted" style="margin:0">Emails via listmonk · texts via Twilio · times in Sydney</p></div></header>
 <div class="grid">
+${mindbodyCard(settings)}
 <form class="card" style="margin:0" method="post" action="/settings/listmonk"><div class="bar"><h2>✉ listmonk (email)</h2>${listmonkPill}</div>
 <div class="kv"><span>Address</span><input name="baseUrl" value="${escapeHtml(settings.listmonk.baseUrl)}"><span>API user</span><input name="apiUser" value="${escapeHtml(settings.listmonk.apiUser)}" autocomplete="off"><span>API token</span>${tokenField}</div>
 <p class="small muted">${checked}</p>
@@ -230,6 +231,7 @@ export function settingsPage(settings: PublicSettings, error: string | null, not
 <div class="kv"><span>Account SID</span>${sidField}<span>Auth token</span><div class="secret">${authField}</div><span>Sending number</span><input name="fromNumber" value="${escapeHtml(settings.twilio.fromNumber)}" placeholder="+61 4xx xxx xxx"><span>Show texts as</span><div><select name="fromMode"><option value="number"${settings.twilio.fromMode === "number" ? " selected" : ""}>Twilio number (default)</option><option value="name"${settings.twilio.fromMode === "name" ? " selected" : ""}>Sender name, e.g. BalanceMoves</option></select><div class="small muted">Using the number lets clients reply. Replies can't reach a sender name.</div></div>
 <span>Sender name</span><input name="senderName" value="${escapeHtml(settings.twilio.senderName)}" placeholder="BalanceMoves">
 <span>"Reply STOP" footer</span><label class="radio"><input type="checkbox" name="appendReplyStop"${stopOn ? " checked" : ""}> ${stopOn ? "On" : "Off"} <span class="muted small">(adds ~16 characters to each text)</span></label></div>
+<p class="small muted">Sends use POST /Messages.json only. The number's incoming-message webhook belongs to Chatwoot, so saving here leaves the number and that webhook as they are.</p>
 <div class="actions"><button class="ghost" type="submit" formaction="/settings/test/twilio">Send test text to me</button><input name="testPhone" placeholder="Your mobile" style="width:160px"><button type="submit">Save</button></div></form>
 <form class="card" style="margin:0" method="post" action="/settings/from"><h2>Default "from" email</h2>
 <div class="kv"><span>From name</span><input name="fromName" value="${escapeHtml(settings.defaultFromName)}"><span>From address</span><input name="fromEmail" value="${escapeHtml(settings.defaultFromEmail)}"><span>Reply-to</span><input name="replyTo" value="${escapeHtml(settings.defaultReplyTo)}"></div>
@@ -242,6 +244,27 @@ export function settingsPage(settings: PublicSettings, error: string | null, not
 </div>
 <p class="small muted">Tokens are stored encrypted. After saving, this page only shows Connected / Not connected. Use Replace to enter a new one.</p>
 <script>document.getElementById("show-token")?.addEventListener("click",()=>{const el=document.getElementById("token");if(el){el.hidden=false;el.focus()}})</script>`;
+}
+
+function mindbodyCard(settings: PublicSettings): string {
+  const usage = settings.mindbody;
+  const pill = usage.atCap
+    ? `<span class="pill no">● At cap</span>`
+    : usage.alert
+      ? `<span class="pill no">● Alert</span>`
+      : `<span class="pill ok">● Within budget</span>`;
+  const callers = usage.callers.length
+    ? usage.callers.map((row) => `${escapeHtml(row.caller)} ${row.calls.toLocaleString("en-AU")}`).join("<br>")
+    : "No calls recorded";
+  return `<div class="card full" style="margin:0"><div class="bar"><h2>Mindbody API calls</h2>${pill}</div>
+<div class="kv"><span>Month</span><span>${escapeHtml(monthLabel(usage.month))} (UTC)</span><span>Calls used</span><span>${usage.calls.toLocaleString("en-AU")} of ${usage.cap.toLocaleString("en-AU")}</span><span>Alert</span><span>${usage.alertAt.toLocaleString("en-AU")}</span><span>By caller</span><span>${callers}</span></div>
+<p class="small muted">The free tier is 5,000 calls a month, shared. This page counts every system that writes a caller row. Optional cache refreshes stop at 5,000. Client data is reused for 6 hours.</p></div>`;
+}
+
+function monthLabel(month: string): string {
+  const [year, raw] = month.split("-");
+  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return `${names[Number(raw) - 1] ?? month} ${year ?? ""}`.trim();
 }
 
 function triggerOptions(current: TriggerChoice): string {
@@ -260,6 +283,7 @@ function triggerOptions(current: TriggerChoice): string {
     ["birthday-month", "On the 1st of their birthday month"],
     ["every-nth", "Every Nth visit"],
     ["credits", "Credits remaining"],
+    ["under-credits", "Under this many credits"],
     ["visit-window", "Visit window"],
     ["lead", "External lead"],
   ];
@@ -281,6 +305,7 @@ function ruleNumberValue(automation: Automation | null, trigger: TriggerChoice):
   if (trigger === "since-visit" || trigger === "lead") return String(automation.timingOffsetDays ?? 0);
   if (trigger === "every-nth") return String(automation.skipRules.everyNthVisit ?? "");
   if (trigger === "credits") return String(automation.filters.exactRemaining ?? "");
+  if (trigger === "under-credits") return String((automation.filters.maxRemaining ?? 0) + 1);
   if (trigger === "visit-window") return String(automation.skipRules.visitWindowDays ?? "");
   return "";
 }

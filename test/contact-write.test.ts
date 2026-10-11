@@ -58,7 +58,16 @@ describe("contact write mode", () => {
     const written = await sendSale({ extra: { CONTACT_WRITE_MODE: "self" } });
     expect(written.response.status).toBe(200);
     const put = written.calls.find((call) => call.method === "PUT");
-    expect(JSON.parse(put?.body ?? "{}").attribs).toMatchObject({ pass_end_date: "14 Oct 2026", first_name: "Ada" });
+    expect(JSON.parse(put?.body ?? "{}").attribs).toMatchObject({
+      pass_end_date: "14 Oct 2026",
+      first_name: "Ada",
+      client_id: "100",
+      pack_credits_total: "0",
+      reformer_credits: "0",
+      mat_barre_credits: "0",
+      breathwork_yoga_credits: "0",
+      intro_client: "false",
+    });
     const tx = JSON.parse(written.calls.find((call) => call.url.includes("/api/tx"))?.body ?? "{}") as { data: Record<string, unknown> };
     expect(tx.data.passEndDate).toBe("14 Oct 2026");
 
@@ -120,6 +129,10 @@ async function sendSale(options: { subscriber?: boolean; extra?: Record<string, 
       clientFirstName: "Ada",
       clientLastName: "Lovelace",
       items: [{ name: "2 Week Intro Pass" }],
+      clientPassSessionsRemaining: 2,
+      clientPassExpirationDateTime: "2026-10-14T00:00:00Z",
+      clientsNumberOfVisitsAtSite: 1,
+      lastVisitDateTime: "2026-10-04T00:00:00Z",
     },
   });
   try {

@@ -1,5 +1,6 @@
 import type { RuntimeConfig } from "../env";
 import type { Repo } from "../db/repo";
+import { MINDBODY_ALERT, MINDBODY_CAP, utcMonth } from "../mindbody/budget";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { parseClock } from "../time";
 
@@ -48,6 +49,15 @@ export type PublicSettings = {
   appendReplyStop: boolean;
   quietAction: QuietAction;
   smsQuietHours: { start: string; end: string; timeZone: "Australia/Sydney" };
+  mindbody: {
+    month: string;
+    calls: number;
+    alertAt: number;
+    cap: number;
+    alert: boolean;
+    atCap: boolean;
+    callers: { caller: string; calls: number }[];
+  };
 };
 
 export type SettingsPatch = {
@@ -96,9 +106,23 @@ export async function noteListmonkCheck(repo: Repo, checkedAt: string, templateC
   if (templateCount !== null) await repo.putSetting(SETTING_KEYS.listmonkTemplateCount, String(templateCount), false);
 }
 
-export async function readPublicSettings(repo: Repo, config: RuntimeConfig): Promise<PublicSettings> {
+export async function readPublicSettings(repo: Repo, config: RuntimeConfig, now: Date = new Date()): Promise<PublicSettings> {
   const connections = await resolveConnections(repo, config);
-  return toPublic(connections);
+  const month = utcMonth(now);
+  const rows = await repo.mindbodyUsage(month);
+  const calls = rows.reduce((sum, row) => sum + row.count, 0);
+  return {
+    ...toPublic(connections),
+    mindbody: {
+      month,
+      calls,
+      alertAt: MINDBODY_ALERT,
+      cap: MINDBODY_CAP,
+      alert: calls >= MINDBODY_ALERT,
+      atCap: calls >= MINDBODY_CAP,
+      callers: rows.map((row) => ({ caller: row.caller, calls: row.count })),
+    },
+  };
 }
 
 export async function writeSettings(repo: Repo, config: RuntimeConfig, patch: SettingsPatch): Promise<PublicSettings> {
@@ -169,7 +193,7 @@ export async function resolveConnections(repo: Repo, config: RuntimeConfig): Pro
   };
 }
 
-export function toPublic(connections: Connections): PublicSettings {
+export function toPublic(connections: Connections): Omit<PublicSettings, "mindbody"> {
   return {
     listmonk: {
       baseUrl: connections.listmonkBaseUrl,

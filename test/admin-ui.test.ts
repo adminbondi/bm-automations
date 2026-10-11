@@ -116,7 +116,8 @@ describe("admin pages", () => {
     expect(html.indexOf("Not in use")).toBeLessThan(html.indexOf("Lapsed 30 days"));
     expect(html).toContain("<details class=\"unused\">");
     expect(html).not.toContain("<details class=\"unused\" open");
-    expect(html).toContain(">58<");
+    expect(html).toContain(">59<");
+    expect(html).toContain("Red flag, under 3 credits");
   });
 
   it("shows a number or date under the trigger for each new rule", async () => {
@@ -144,6 +145,12 @@ describe("admin pages", () => {
     const credits = await page(59);
     expect(credits).toContain("Credits remaining");
     expect(credits).toContain("value=\"2\"");
+    const under = await page(72);
+    expect(under).toContain("Red flag, under 3 credits");
+    expect(under).toContain("value=\"under-credits\" selected");
+    expect(under).toContain("Under this many credits");
+    expect(under).toContain("value=\"3\"");
+    expect(under).toContain("booking or visit payload");
     const window = await page(66);
     expect(window).toContain("Visit window");
     expect(window).toContain("value=\"14\"");
@@ -198,6 +205,17 @@ describe("admin pages", () => {
     if (typeof credits === "string") return;
     expect(credits.filters.exactRemaining).toBe(2);
     expect(credits.timingKind).toBe("immediate");
+
+    const red = base(findSeed("red-flag-under-3-credits"), "under-credits", "3");
+    expect(typeof red).not.toBe("string");
+    if (typeof red === "string") return;
+    expect(red.enabled).toBe(false);
+    expect(red.filters.maxRemaining).toBe(2);
+    expect(red.filters.exactRemaining).toBeUndefined();
+    expect(red.filters.signedInStatus).toBeUndefined();
+    expect(red.timingKind).toBe("immediate");
+    expect(red.triggerEvents).toEqual(["classRosterBooking.created", "classRosterBookingStatus.updated"]);
+    expect(base(findSeed("red-flag-under-3-credits"), "under-credits", "0")).toBe("invalid_offset");
 
     const windowed = base(findSeed("classpass-two-in-two-weeks"), "visit-window", "14");
     expect(typeof windowed).not.toBe("string");

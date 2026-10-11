@@ -1,13 +1,13 @@
 # LoyalSnap coverage
 
-Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 71 automations, 19 dashboard lanes, dynamic client lists, and the static client-list titles). Every automation below is a row in D1. Rows that were off in LoyalSnap are seeded with enabled = false.
+Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 19 dashboard lanes, dynamic client lists, and the static client-list titles). 72 automations are rows in D1, including the red-flag credits rule. Rows that were off are seeded with enabled = false.
 
 ## Summary
 
 | Set | Covered | Gap |
 | --- | ---: | ---: |
-| Automations (71) | 71 | 0 |
-| Dashboard lanes (19) | 18 | 1 |
+| Automations (72) | 72 | 0 |
+| Dashboard lanes (19) | 19 | 0 |
 | Dynamic client lists (13) | 13 | 0 |
 | Static client lists (244) | 0 | 244 |
 
@@ -30,6 +30,7 @@ Emails that have no listmonk template id stay with template_id null. Turning one
 | Class packs | Pack expired 5 days | off | package purchase, then the morning cron | class pack | 5 days after expiry | one send | covered — D1 pack-expired-5-days. days_after_expiry 5. |
 | Class packs | Pack with 2 classes remaining | off | class sign-in | 2 visits remaining, at least 1 visit | immediately | one send | covered — D1 pack-two-remaining. filters.exactRemaining 2 from Mindbody ClientServices.Remaining. |
 | Class packs | Pack with no classes remaining | off | class sign-in | 0 visits remaining on the class pack | immediately | one send | covered — D1 pack-none-remaining. exactRemaining 0. |
+| Class packs | Red flag, under 3 credits | off | class booking or visit | fewer than 3 credits remaining | immediately | one send per client; stays off | covered — D1 red-flag-under-3-credits. maxRemaining 2 from the webhook remaining count. Enabled false. No template. |
 | ClassPass | ClassPass 10 classes | off | class sign-in | ClassPass package | immediately | exactly 10 ClassPass visits | covered — D1 classpass-10-classes. exactVisits 10. |
 | ClassPass | ClassPass 2+ classes in 2 weeks | off | class sign-in | ClassPass, between 2 and 999 visits in 14 days | immediately once the window matches | one send per client | covered — D1 classpass-two-in-two-weeks. visitWindowDays 14, min 2, max 999. |
 | ClassPass | ClassPass 5 classes | off | class sign-in | one of 4 ClassPass packages (token match) | immediately | exactly 5 ClassPass visits | covered — D1 classpass-5-classes. exactVisits 5. |
@@ -114,7 +115,7 @@ These are staff call, text, and email scripts on the task dashboard. They are no
 | lane | TRIAL EXPIRED 2 DAYS AGO | staff script | task dashboard audience, not a send | intro expiry was 2 days ago | none | not an automation; Tasks still links to the task dashboard | covered — matchSegment expiredDaysAgo 2, intro. |
 | lane | PACKS - LOW CREDITS | staff script | task dashboard audience, not a send | current service with at most 4 credits left | none | not an automation; Tasks still links to the task dashboard | covered — The lane script does not give a number. This uses the same line as the dynamic list 'less than 5 credits': maxRemaining 4. |
 | lane | PACKS & UPFRONTS EXPIRING | staff script | task dashboard audience, not a send | current service expiring within 30 days | none | not an automation; Tasks still links to the task dashboard | covered — The lane does not give a day count. 30 days matches the dynamic 'expiring next 30 days' list. |
-| lane | RED FLAG - LOW MEMBER USAGE: ACTIVE MEMBERS | staff script | task dashboard audience, not a send | active member, days since last visit | none | not an automation; Tasks still links to the task dashboard | gap — The script says 'some time' and does not give a number. daysSinceLastVisitMin is supported by matchSegment. Leave the lane unmatched until owners set the threshold. |
+| lane | RED FLAG - UNDER 3 CREDITS | staff script | task dashboard audience, not a send | current pack with fewer than 3 credits remaining | none | not an automation; Tasks still links to the task dashboard | covered — Thiago set this as credits, not days since the last visit. matchSegment maxRemaining 2 (remaining 0, 1, or 2). A booking or visit webhook that includes clientPassSessionsRemaining answers it, so the check does not call Mindbody. The matching D1 row stays off and has no template. |
 | lane | ORANGE FLAG - LOW MEMBER USAGE: ACTIVE MEMBERS | staff script | task dashboard audience, not a send | active member, 0 signed-in visits in the last 7 days | none | not an automation; Tasks still links to the task dashboard | covered — The call script says they have not been seen as often in the last 7 days. visitsInWindow 7 days max 0, hasContract. |
 
 ## Dynamic client lists

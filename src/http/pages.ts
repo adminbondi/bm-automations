@@ -282,6 +282,7 @@ function triggerOptions(current: TriggerChoice): string {
     ["birthday-month", "On the 1st of their birthday month"],
     ["every-nth", "Every Nth visit"],
     ["credits", "Credits remaining"],
+    ["under-credits", "Under this many credits"],
     ["visit-window", "Visit window"],
     ["lead", "External lead"],
   ];
@@ -303,6 +304,7 @@ function ruleNumberValue(automation: Automation | null, trigger: TriggerChoice):
   if (trigger === "since-visit" || trigger === "lead") return String(automation.timingOffsetDays ?? 0);
   if (trigger === "every-nth") return String(automation.skipRules.everyNthVisit ?? "");
   if (trigger === "credits") return String(automation.filters.exactRemaining ?? "");
+  if (trigger === "under-credits") return String((automation.filters.maxRemaining ?? 0) + 1);
   if (trigger === "visit-window") return String(automation.skipRules.visitWindowDays ?? "");
   return "";
 }

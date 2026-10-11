@@ -3,7 +3,8 @@ import { createSessionToken } from "../src/auth";
 import { createApp } from "../src/index";
 import { mindbodySignature } from "../src/signature";
 import { parseMindbodyEvent } from "../src/mindbody/events";
-import { chunkIds, MEASURED_EVENTS_PER_DAY, monthlyCalls, MINDBODY_ALERT, MINDBODY_CALLER } from "../src/mindbody/budget";
+import { chunkIds, MEASURED_EVENTS_PER_DAY, monthlyCalls, MINDBODY_ALERT, MINDBODY_CALLER, resourcesToFetch } from "../src/mindbody/budget";
+import { findSeed } from "../src/automations/seed";
 import { runScheduled } from "../src/pipeline/cron";
 import { sydneyDate } from "../src/time";
 import { d1Database, Repo } from "../src/db/repo";
@@ -107,6 +108,52 @@ describe("Mindbody call budget", () => {
     expect(calls).toEqual([]);
     expect(monthlyCalls(MEASURED_EVENTS_PER_DAY, 0)).toBe(0);
     expect(monthlyCalls(MEASURED_EVENTS_PER_DAY, 5)).toBe(66_000);
+  });
+
+  it("matches under 3 credits from the booking payload with 0 Mindbody calls", async () => {
+    const calls: string[] = [];
+    const sqlite = openSqlite();
+    const env = testEnv(asD1(sqlite), STAFF);
+    const repo = new Repo(d1Database(asD1(sqlite)), () => "2026-10-11T00:00:00.000Z");
+    await repo.ensureSeed();
+    const seeded = await repo.getAutomation(72);
+    expect(seeded?.enabled).toBe(false);
+    expect(seeded?.key).toBe("red-flag-under-3-credits");
+    expect(seeded?.filters).toEqual({ maxRemaining: 2 });
+    await repo.updateAutomation(72, { enabled: true });
+    const rule = findSeed("red-flag-under-3-credits");
+    rule.enabled = true;
+    const low = parseMindbodyEvent(JSON.parse(bookingEvent("m-red-low", { clientPassSessionsRemaining: 2 })));
+    const high = parseMindbodyEvent(JSON.parse(bookingEvent("m-red-high", { clientPassSessionsRemaining: 3 })));
+    expect(resourcesToFetch([rule], low)).toEqual([]);
+    expect(resourcesToFetch([rule], high)).toEqual([]);
+    const app = createApp({
+      now: () => new Date("2026-10-11T00:00:00Z"),
+      fetchImpl: async (input) => {
+        calls.push(String(input));
+        throw new Error("outbound");
+      },
+    });
+    const matched = await post(app, env, bookingEvent("m-red-low", { clientPassSessionsRemaining: 2 }));
+    expect(matched.status).toBe(200);
+    const matchedBody = await matched.json() as { plans: { key: string; reason: string }[] };
+    expect(matchedBody.plans.find((plan) => plan.key === "red-flag-under-3-credits")?.reason).toBe("template_missing");
+    const booked = JSON.parse(bookingEvent("m-red-book", { clientPassSessionsRemaining: 1 }));
+    booked.eventId = "classRosterBooking.created";
+    const created = await post(app, env, JSON.stringify(booked));
+    expect(created.status).toBe(200);
+    const createdBody = await created.json() as { plans: { key: string; reason: string }[] };
+    expect(createdBody.plans.find((plan) => plan.key === "red-flag-under-3-credits")?.reason).toBe("template_missing");
+    const above = await post(app, env, bookingEvent("m-red-high", { clientPassSessionsRemaining: 3 }));
+    expect(above.status).toBe(200);
+    const aboveBody = await above.json() as { plans: { key: string; reason: string }[] };
+    expect(aboveBody.plans.find((plan) => plan.key === "red-flag-under-3-credits")?.reason).toBe("remaining_above_max");
+    expect(calls).toEqual([]);
+    expect((await repo.getAutomation(72))?.enabled).toBe(true);
+    const fresh = openSqlite();
+    const freshRepo = new Repo(d1Database(asD1(fresh)), () => "2026-10-11T00:00:00.000Z");
+    await freshRepo.ensureSeed();
+    expect((await freshRepo.getAutomation(72))?.enabled).toBe(false);
   });
 
   it("uses payload credits with 0 calls, then caches a fetch the rule still needs", async () => {

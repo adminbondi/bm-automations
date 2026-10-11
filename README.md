@@ -1,6 +1,6 @@
 # bm-automations
 
-Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the LoyalSnap automations that were on, and seeds the ones that were off so an owner can recreate them. Rules live in D1. Nothing sends until an owner enables that row. `COVERAGE.md` maps all 71 automations, the 19 dashboard lanes, and the client lists.
+Cloudflare Worker for Balance Moves (Mindbody site `9853`). It replaces the LoyalSnap automations that were on, and seeds the ones that were off so an owner can recreate them. Rules live in D1. Nothing sends until an owner enables that row. `COVERAGE.md` maps all 72 automations, the 19 dashboard lanes, and the client lists.
 
 Mindbody webhooks and the Sydney morning cron decide a send from the event payload first. They call the Mindbody Public API only when an enabled automation still needs services, contracts, or visits, then send email through listmonk (`POST /api/tx` at `https://campaigns.balancemoves.com.au`) or SMS through Twilio. Signed-in owners manage the rows at `/automations`, the send log at `/log`, and connections at `/settings`. Tasks links out to the task dashboard. Settings shows this month's Mindbody call count.
 
@@ -21,13 +21,13 @@ A typical event now makes 0 calls. Client events already carry the profile and c
 
 ## Coverage
 
-`COVERAGE.md` is the audit. The 13 automations that were on in LoyalSnap keep listmonk templates 5–13. The other 58 are seeded disabled. Emails with no listmonk template id do not send; the job waits with `template_missing`. Package and contract names that were not in the export are an empty list, which matches nothing until an owner fills them in.
+`COVERAGE.md` is the audit. The 13 automations that were on in LoyalSnap keep listmonk templates 5–13. The other 59 are seeded disabled, including "Red flag, under 3 credits" (`maxRemaining` 2). That row fires on a booking or visit when the payload's remaining count is under 3, and it stays off. Emails with no listmonk template id do not send; the job waits with `template_missing`. Package and contract names that were not in the export are an empty list, which matches nothing until an owner fills them in.
 
 New timing and filters, all data on the row: `days_since_last_visit`, `birthday_day`, `birthday_month_start`, `everyNthVisit`, a visit window, remaining credits (`exactRemaining`, `minRemaining`, `maxRemaining`), and `clientActivity` active or inactive. Visit rows store a Sydney start date. Services store Mindbody `Remaining`. Profiles store `BirthDate` and `ReferredBy`.
 
 External leads are not a Mindbody event. `POST /webhooks/lead` accepts the same JSON shape as a Mindbody webhook (`eventId` `lead.created`) and requires header `X-Lead-Token` equal to the `LEAD_WEBHOOK_SECRET` secret. If that secret is unset, the route returns 401. It does not talk to Facebook.
 
-Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.ts`. They do not send. The red-flag lane is a gap until owners set how many days count as low usage. Static client-list titles are gaps: the export had titles only.
+Dashboard lanes and dynamic lists are segment filters in `src/segments/catalog.ts`. They do not send. The red-flag lane is "RED FLAG - UNDER 3 CREDITS": a pack with fewer than 3 credits left, read from the booking or visit payload. The matching automation stays off. Static client-list titles are gaps: the export had titles only.
 
 ## Merge fields
 

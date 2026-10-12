@@ -1,5 +1,6 @@
 import { stepPreview, stepTimingLabel } from "../automations/labels";
 import { LOYALSNAP_LIVE_KEYS } from "../automations/seed";
+import { TEST_BYPASS_LABEL, emptySample, type TestSample } from "../automations/test-panel";
 import type { Automation, FunnelLane, SendLogRow } from "../automations/types";
 import { derivedAudience, derivedDelay, derivedTrigger, RULE_FIELDS, type AudienceChoice, type DelayChoice, type RuleTrigger, type TriggerChoice } from "./editor";
 import { TEMPLATE_SUBJECTS } from "../automations/subjects";
@@ -70,7 +71,46 @@ function renderStep(step: Automation, first: boolean): string {
   return `<div class="conn${first ? " start" : ""}"><span class="dl">${escapeHtml(stepTimingLabel(step))}</span><span class="ln">→</span></div><div class="step${live ? "" : " unused"}" data-key="${escapeHtml(step.key)}"><div class="nm"><a href="/automations/${step.id}">${escapeHtml(step.name)}</a></div><div class="pv">${escapeHtml(stepPreview(step))}</div><div class="ft">${channel}<form method="post" action="/automations/${step.id}/toggle"><button class="plain" type="submit" aria-label="${on ? "Switch off" : "Switch on"}"><span class="sw${on ? " on" : ""}"></span></button></form></div>${tag}</div>`;
 }
 
-export function editPage(automation: Automation | null, settings: PublicSettings, error: string | null, notice: string | null = null): string {
+export type TestClientOption = { id: string; name: string; email: string | null; phone: string | null };
+
+export type TestPreviewView = {
+  headline: string;
+  renderedTitle: string;
+  rendered: string;
+  recipientNote: string | null;
+};
+
+export type TestPanelState = {
+  clientQuery: string;
+  clients: TestClientOption[];
+  searchError: string | null;
+  source: "client" | "sample";
+  clientId: string;
+  recipient: string;
+  sample: TestSample;
+  preview: TestPreviewView | null;
+};
+
+export function emptyTestPanel(): TestPanelState {
+  return {
+    clientQuery: "",
+    clients: [],
+    searchError: null,
+    source: "sample",
+    clientId: "",
+    recipient: "",
+    sample: emptySample(),
+    preview: null,
+  };
+}
+
+export function editPage(
+  automation: Automation | null,
+  settings: PublicSettings,
+  error: string | null,
+  notice: string | null = null,
+  panel: TestPanelState = emptyTestPanel(),
+): string {
   const creating = automation === null;
   const name = automation?.name ?? "";
   const channel = automation?.channel ?? "email";
@@ -124,7 +164,8 @@ ${check("skipMembership", "Bought a membership", Boolean(automation?.skipRules.s
 ${check("skipSent", "Already sent this automation once", automation ? automation.skipRules.skipIfAlreadySent !== false : true)}
 ${check("skipUnsubscribed", "No mobile number / unsubscribed", Boolean(automation?.skipRules.skipIfUnsubscribed))}
 </div></div>
-<div class="actions">${creating ? "" : `<input name="testPhone" placeholder="Mobile for a test text" style="width:190px"><button class="ghost" type="submit" formaction="/automations/${automation.id}/test">Send test to me</button>`}<a class="btn ghost" href="/automations">Cancel</a><button type="submit">Save</button></div></form>`;
+<div class="actions"><a class="btn ghost" href="/automations">Cancel</a><button type="submit">Save</button></div></form>
+${creating ? "" : testPanel(automation, panel)}`;
 }
 
 export function editScript(appendReplyStop: boolean): string {
@@ -159,7 +200,7 @@ export function logPage(rows: LogView[] | null, automations: Automation[], query
   const range = query.get("range") === "1" || query.get("range") === "30" ? query.get("range") : "7";
   const automation = query.get("automation") ?? "all";
   const channel = query.get("channel") === "email" || query.get("channel") === "sms" ? query.get("channel") : "all";
-  const status = ["sent", "skipped", "failed", "bounced"].includes(query.get("status") ?? "") ? query.get("status") : "all";
+  const status = ["sent", "skipped", "failed", "bounced", "test"].includes(query.get("status") ?? "") ? query.get("status") : "all";
   const q = query.get("q") ?? "";
   const option = (value: string, label: string, current: string | null) =>
     `<option value="${escapeHtml(value)}"${value === current ? " selected" : ""}>${escapeHtml(label)}</option>`;
@@ -173,7 +214,7 @@ ${example ? `<div class="banner">Example data. All automations are off, so the r
 <label>Date<select name="range" onchange="this.form.submit()">${option("7", "Last 7 days", range)}${option("1", "Today", range)}${option("30", "Last 30 days", range)}</select></label>
 <label>Automation<select name="automation" onchange="this.form.submit()">${option("all", "All", automation)}${names}</select></label>
 <label>Channel<select name="channel" onchange="this.form.submit()">${option("all", "All", channel)}${option("email", "Email", channel)}${option("sms", "Text", channel)}</select></label>
-<label>Status<select name="status" onchange="this.form.submit()">${option("all", "All", status)}${option("sent", "Sent", status)}${option("skipped", "Skipped", status)}${option("failed", "Failed", status)}${option("bounced", "Bounced", status)}</select></label>
+<label>Status<select name="status" onchange="this.form.submit()">${option("all", "All", status)}${option("sent", "Sent", status)}${option("skipped", "Skipped", status)}${option("failed", "Failed", status)}${option("bounced", "Bounced", status)}${option("test", "TEST", status)}</select></label>
 <label>Client<input name="q" value="${escapeHtml(q)}" placeholder="Name, email or phone" onchange="this.form.submit()"></label>
 </div><a class="btn ghost" href="${csv}">Export CSV</a></form>
 <div class="table-wrap"><table class="cards"><thead><tr><th>When (Sydney)</th><th>Client</th><th>Email / phone</th><th>Automation</th><th>Channel</th><th>Status</th><th>Detail</th></tr></thead><tbody>${body}</tbody></table></div>`;
@@ -185,12 +226,20 @@ export type LogView = {
   contact: string;
   automation: string;
   channel: "email" | "sms";
-  status: "sent" | "skipped" | "failed" | "bounced";
+  status: "sent" | "skipped" | "failed" | "bounced" | "test";
   detail: string;
 };
 
 export function presentLog(row: SendLogRow, names: Map<number, string>): LogView {
-  const status = row.status.includes("bounce") ? "bounced" : row.status.includes("fail") ? "failed" : row.status === "sent" ? "sent" : "skipped";
+  const status = row.status === "test"
+    ? "test"
+    : row.status.includes("bounce")
+      ? "bounced"
+      : row.status.includes("fail")
+        ? "failed"
+        : row.status === "sent"
+          ? "sent"
+          : "skipped";
   return {
     when: formatSydney(new Date(row.createdAt)),
     client: row.clientId,
@@ -246,6 +295,10 @@ ${mindbodyCard(settings)}
 <div class="kv"><span>Don't send between</span><div style="display:flex;gap:8px;align-items:center"><input type="time" name="start" value="${escapeHtml(settings.smsQuietHours.start)}"> and <input type="time" name="end" value="${escapeHtml(settings.smsQuietHours.end)}"></div>
 <span>Time zone</span><span>Australia/Sydney</span><span>During quiet hours</span><select name="quietAction"><option value="hold"${settings.quietAction === "hold" ? " selected" : ""}>Hold and send at 9:00 am</option><option value="skip"${settings.quietAction === "skip" ? " selected" : ""}>Skip the text</option></select></div>
 <p class="small muted">Emails are not held.</p><div class="actions"><button type="submit">Save</button></div></form>
+<form class="card" style="margin:0" method="post" action="/settings/test-recipients"><h2>Test recipients</h2>
+<label>Allowlist<textarea name="testRecipients">${escapeHtml(settings.testRecipients)}</textarea></label>
+<p class="small muted">Send test on an automation delivers only to these addresses. One email or mobile per line. Until you save a list, it is bondi@balancemoves.com.au.</p>
+<div class="actions"><button type="submit">Save</button></div></form>
 </div>
 <p class="small muted">Tokens are stored encrypted. After saving, this page only shows Connected / Not connected. Use Replace to enter a new one.</p>
 <script>document.getElementById("show-token")?.addEventListener("click",()=>{const el=document.getElementById("token");if(el){el.hidden=false;el.focus()}})</script>`;
@@ -348,7 +401,52 @@ function delayOptions(current: DelayChoice): string {
 
 function logRow(row: LogView): string {
   const pill = row.channel === "sms" ? `<span class="pill text">💬 Text</span>` : `<span class="pill email">✉ Email</span>`;
-  return `<tr><td data-l="When (Sydney)">${escapeHtml(row.when)}</td><td data-l="Client">${escapeHtml(row.client)}</td><td data-l="Email / phone">${escapeHtml(row.contact)}</td><td data-l="Automation">${escapeHtml(row.automation)}</td><td data-l="Channel">${pill}</td><td data-l="Status"><span class="pill ${row.status}">${row.status}</span></td><td data-l="Detail" class="muted">${escapeHtml(row.detail)}</td></tr>`;
+  const status = row.status === "test" ? "TEST" : row.status;
+  return `<tr><td data-l="When (Sydney)">${escapeHtml(row.when)}</td><td data-l="Client">${escapeHtml(row.client)}</td><td data-l="Email / phone">${escapeHtml(row.contact)}</td><td data-l="Automation">${escapeHtml(row.automation)}</td><td data-l="Channel">${pill}</td><td data-l="Status"><span class="pill ${row.status}">${status}</span></td><td data-l="Detail" class="muted">${escapeHtml(row.detail)}</td></tr>`;
+}
+
+function testPanel(automation: Automation, panel: TestPanelState): string {
+  const clientChecked = panel.source === "client" ? " checked" : "";
+  const sampleChecked = panel.source === "sample" ? " checked" : "";
+  const results = panel.clients.length === 0
+    ? (panel.clientQuery.trim().length >= 2 && !panel.searchError ? `<p class="small muted">No Mindbody clients match that search.</p>` : "")
+    : panel.clients.map((client) => {
+      const bits = [client.email, client.phone].filter(Boolean).join(" · ");
+      const checked = client.id === panel.clientId ? " checked" : "";
+      return `<label class="radio"><input type="radio" name="clientId" value="${escapeHtml(client.id)}"${checked}> ${escapeHtml(client.name)}${bits ? ` · ${escapeHtml(bits)}` : ""}</label>`;
+    }).join("");
+  const preview = panel.preview
+    ? `<div class="preview" id="test-preview"><div class="hd">${escapeHtml(panel.preview.headline)}</div><div class="mail"><div class="small muted" style="margin-bottom:8px">${escapeHtml(panel.preview.renderedTitle)}${automation.channel === "email" ? " · the design stays in listmonk" : ""}</div><pre style="white-space:pre-wrap;margin:0;font:inherit">${escapeHtml(panel.preview.rendered)}</pre>${panel.preview.recipientNote ? `<p class="small" style="margin:10px 0 0">${escapeHtml(panel.preview.recipientNote)}</p>` : ""}</div></div>`
+    : "";
+  const field = (name: string, label: string, value: string, type = "text") =>
+    `<label>${label}<input name="${name}" type="${type}" value="${escapeHtml(value)}"></label>`;
+  const sample = panel.sample;
+  return `<div class="card" id="send-test" style="margin-top:16px"><h2>Send test</h2>
+<p class="small"><b>${escapeHtml(TEST_BYPASS_LABEL)}</b>${automation.enabled ? "" : " This automation is off."}</p>
+<form method="get" action="/automations/${automation.id}" class="bar"><label>Mindbody client<input name="clientQ" value="${escapeHtml(panel.clientQuery)}" placeholder="Name or email"></label><button class="ghost" type="submit">Search</button></form>
+${panel.searchError ? `<div class="err">${escapeHtml(panel.searchError)}</div>` : ""}
+<form method="post" action="/automations/${automation.id}/preview">
+<input type="hidden" name="clientQ" value="${escapeHtml(panel.clientQuery)}">
+<label class="radio"><input type="radio" name="source" value="client"${clientChecked}> Use the Mindbody client picked below</label>
+${results}
+<label class="radio"><input type="radio" name="source" value="sample"${sampleChecked}> Enter sample values</label>
+<div class="grid" style="margin-top:8px">
+${field("sampleFirst", "First name", sample.first)}
+${field("sampleLast", "Last name", sample.last)}
+${field("sampleEmail", "Client email (merge only)", sample.email, "email")}
+${field("samplePhone", "Client mobile (merge only)", sample.phone)}
+${field("sampleBirth", "Birth date", sample.birth, "date")}
+${field("sampleCreated", "Client created", sample.created, "date")}
+${field("samplePack", "Pack name", sample.pack)}
+${field("samplePassEnd", "Pass end", sample.passEnd, "date")}
+${field("sampleCredits", "Credits remaining", sample.credits, "number")}
+${field("sampleVisits", "Signed-in visits", sample.visits, "number")}
+</div>
+<p class="small muted">Sample values fill the rules and the message. The recipient below is the only address that can receive the test.</p>
+<label>Recipient<input name="recipient" value="${escapeHtml(panel.recipient)}" placeholder="Email or mobile on the Test recipients list" autocomplete="off"></label>
+${preview}
+<div class="actions"><button class="ghost" type="submit" formaction="/automations/${automation.id}/preview">Preview</button><button type="submit" formaction="/automations/${automation.id}/test">Send test</button></div>
+</form></div>`;
 }
 
 function csvCell(value: string): string {
@@ -368,6 +466,11 @@ function errorText(code: string): string {
     invalid_name: "Name is required.",
     invalid_key: "That name cannot be turned into a key.",
     not_allowlisted: "That address is not on the send allowlist.",
+    test_not_allowlisted: "That address is not on the Test recipients list. Add it in Settings.",
+    invalid_recipient: "Enter the email or mobile that should receive the test.",
+    client_required: "Pick a Mindbody client, or switch to sample values.",
+    mindbody_search_failed: "Mindbody did not return that client. Use sample values.",
+    template_missing: "This email has no listmonk template, so the test was not sent.",
     quiet_hours: "Quiet hours are on. The test text was not sent.",
     twilio_not_connected: "Twilio is not connected, or no sending number is saved.",
     listmonk_not_connected: "listmonk is not connected.",
@@ -385,6 +488,7 @@ function noticeText(code: string): string {
     listmonk_ok: "listmonk accepted the connection.",
     twilio_ok: "Test text sent. No client was contacted.",
     email_ok: "Test email sent to you. No client was contacted.",
+    test_sent: "Test sent to the allowlisted recipient and logged as TEST. The client was not contacted.",
   };
   return known[code] ?? "Saved.";
 }

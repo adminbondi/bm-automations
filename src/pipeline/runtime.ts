@@ -1,7 +1,7 @@
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
 import { isQuietHours, sydneyDate, sydneyDateFromInstant } from "../time";
-import { ListmonkClient, normalizePhone, type ClientSnapshot } from "@balancemoves/contacts-core";
+import { ListmonkClient, MindbodyClient, normalizePhone, type ClientSearchHit, type ClientSnapshot } from "@balancemoves/contacts-core";
 import { d1Database, Repo, type ClientRow } from "../db/repo";
 import { TwilioClient } from "../twilio/client";
 import type { ParsedEvent } from "../mindbody/events";
@@ -61,6 +61,28 @@ export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
     withinQuietHours: isQuietHours(now, connections.quietStart, connections.quietEnd),
     now,
   };
+}
+
+export function mindbodyClient(loaded: Loaded, deps: AppDeps): MindbodyClient {
+  return new MindbodyClient(
+    {
+      apiKey: loaded.config.mindbodyApiKey,
+      siteId: loaded.config.siteId,
+      staffUsername: loaded.config.mindbodyStaffUsername,
+      staffPassword: loaded.config.mindbodyStaffPassword,
+    },
+    deps.fetchImpl,
+    () => loaded.now,
+  );
+}
+
+export async function searchMindbodyClients(loaded: Loaded, deps: AppDeps, query: string): Promise<ClientSearchHit[]> {
+  return mindbodyClient(loaded, deps).searchClients(query);
+}
+
+export async function takeSnapshot(loaded: Loaded, deps: AppDeps, clientId: string): Promise<ClientSnapshot> {
+  if (deps.snapshotClient) return deps.snapshotClient(loaded.config, clientId);
+  return mindbodyClient(loaded, deps).snapshot(clientId);
 }
 
 export async function rememberClient(

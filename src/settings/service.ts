@@ -2,6 +2,7 @@ import type { RuntimeConfig } from "../env";
 import type { Repo } from "../db/repo";
 import { MINDBODY_ALERT, MINDBODY_CAP, utcMonth } from "../mindbody/budget";
 import { decryptSecret, encryptSecret } from "./crypto";
+import { DEFAULT_TEST_RECIPIENTS } from "./test-recipients";
 import { parseClock } from "../time";
 
 export const SETTING_KEYS = {
@@ -22,6 +23,7 @@ export const SETTING_KEYS = {
   quietAction: "quiet_action",
   listmonkLastChecked: "listmonk_last_checked",
   listmonkTemplateCount: "listmonk_template_count",
+  testRecipients: "test_recipients",
 } as const;
 
 const SECRET_KEYS = new Set<string>([
@@ -58,6 +60,7 @@ export type PublicSettings = {
     atCap: boolean;
     callers: { caller: string; calls: number }[];
   };
+  testRecipients: string;
 };
 
 export type SettingsPatch = {
@@ -75,6 +78,7 @@ export type SettingsPatch = {
   appendReplyStop?: boolean;
   quietAction?: QuietAction;
   smsQuietHours?: { start?: string; end?: string };
+  testRecipients?: string;
 };
 
 export type Connections = {
@@ -97,6 +101,7 @@ export type Connections = {
   quietAction: QuietAction;
   quietStart: string;
   quietEnd: string;
+  testRecipients: string;
 };
 
 type Stored = Map<string, string>;
@@ -152,6 +157,7 @@ export async function writeSettings(repo: Repo, config: RuntimeConfig, patch: Se
     writes.push({ key: SETTING_KEYS.smsQuietStart, value: clean(patch.smsQuietHours.start) });
     writes.push({ key: SETTING_KEYS.smsQuietEnd, value: clean(patch.smsQuietHours.end) });
   }
+  if ("testRecipients" in patch) writes.push({ key: SETTING_KEYS.testRecipients, value: clean(patch.testRecipients) });
   for (const write of writes) {
     if (write.value === undefined) continue;
     if (SECRET_KEYS.has(write.key)) {
@@ -190,6 +196,7 @@ export async function resolveConnections(repo: Repo, config: RuntimeConfig): Pro
     quietAction: plain(stored, SETTING_KEYS.quietAction, "hold") === "skip" ? "skip" : "hold",
     quietStart: parseClock(quietStart) === null ? config.smsQuietStart : quietStart,
     quietEnd: parseClock(quietEnd) === null ? config.smsQuietEnd : quietEnd,
+    testRecipients: plain(stored, SETTING_KEYS.testRecipients, DEFAULT_TEST_RECIPIENTS),
   };
 }
 
@@ -218,6 +225,7 @@ export function toPublic(connections: Connections): Omit<PublicSettings, "mindbo
       end: connections.quietEnd,
       timeZone: "Australia/Sydney",
     },
+    testRecipients: connections.testRecipients,
   };
 }
 

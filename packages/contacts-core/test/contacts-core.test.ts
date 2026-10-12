@@ -340,4 +340,37 @@ describe("MindbodyClient", () => {
     expect(urls.filter((url) => url.endsWith("/usertoken/issue"))).toHaveLength(1);
     expect(cached.issuedToken()).toBeNull();
   });
+
+  it("searches clients by name or email", async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith("/usertoken/issue")) return json({ AccessToken: "tok" });
+      if (url.includes("searchText")) {
+        return json({
+          Clients: [
+            { Id: 100, FirstName: "Ada", LastName: "Lovelace", Email: "Ada@Example.com", MobilePhone: "0412 345 678" },
+            { FirstName: "No Id" },
+          ],
+        });
+      }
+      return json({});
+    };
+    const client = new MindbodyClient(
+      { apiKey: "key", siteId: "9853", staffUsername: "staff", staffPassword: "pw" },
+      fetchImpl,
+      () => new Date("2026-10-11T00:00:00Z"),
+    );
+    expect(await client.searchClients("a")).toEqual([]);
+    const hits = await client.searchClients("Ada");
+    expect(hits).toEqual([{
+      id: "100",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: "ada@example.com",
+      phone: "+61412345678",
+    }]);
+    expect(urls.some((url) => url.includes("request.searchText=Ada"))).toBe(true);
+  });
 });

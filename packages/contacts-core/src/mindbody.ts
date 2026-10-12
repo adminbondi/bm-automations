@@ -52,6 +52,14 @@ export type ClientSnapshot = {
 
 export const CLIENT_ID_BATCH = 200;
 
+export type ClientSearchHit = {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+};
+
 export class MindbodyClient {
   private token: string | null = null;
   private fromCache: boolean;
@@ -118,6 +126,33 @@ export class MindbodyClient {
 
   async clientVisits(clientId: string): Promise<MindbodyVisit[]> {
     return this.visits(clientId, await this.staffToken());
+  }
+
+  async searchClients(query: string): Promise<ClientSearchHit[]> {
+    const text = query.trim();
+    if (text.length < 2) return [];
+    const token = await this.staffToken();
+    const body = await this.get(
+      `/client/clients?request.searchText=${encodeURIComponent(text)}&request.limit=15`,
+      token,
+    );
+    const clients = Array.isArray(body.Clients) ? body.Clients : [];
+    const hits: ClientSearchHit[] = [];
+    for (const row of clients) {
+      const client = row as Record<string, unknown>;
+      const id = client.Id ?? client.ClientID;
+      if (id == null || String(id).trim() === "") continue;
+      const contact = mapClient(client);
+      hits.push({
+        id: String(id),
+        firstName: contact.firstName,
+        lastName: contact.lastName,
+        email: contact.email,
+        phone: contact.phone,
+      });
+      if (hits.length >= 15) break;
+    }
+    return hits;
   }
 
   private async staffToken(): Promise<string> {

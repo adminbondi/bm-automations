@@ -101,7 +101,7 @@ describe("admin pages", () => {
     expect(json.automation.filters.packageNameIncludes).toContain("intro pass");
   });
 
-  it("lists the 13 LoyalSnap automations above a collapsed Not in use group", async () => {
+  it("groups automations into LoyalSnap funnel lanes", async () => {
     const sqlite = openSqlite();
     const env = testEnv(asD1(sqlite));
     const app = createApp({ now: () => new Date("2026-10-11T00:00:00Z"), fetchImpl: async () => { throw new Error("unexpected"); } });
@@ -111,16 +111,19 @@ describe("admin pages", () => {
     }), env, {} as ExecutionContext);
     const html = await list.text();
     expect(LOYALSNAP_LIVE_KEYS.size).toBe(13);
-    expect(html.indexOf("Lead welcome")).toBeGreaterThan(-1);
-    expect(html.indexOf("Lead welcome")).toBeLessThan(html.indexOf("Not in use"));
-    expect(html.indexOf("Not in use")).toBeLessThan(html.indexOf("Lapsed 30 days"));
+    const headings = ["LEAD FUNNEL", "TRIAL FUNNEL", "External Leads / Facebook Leads", "MEMBER FUNNEL", "LAPSED CLIENT FUNNEL", "UNUSED FUNNELS", "CLASS PACKS FUNNEL", ">CLASSPASS<", ">BIRTHDAY<"];
+    let cursor = -1;
+    for (const heading of headings) {
+      const at = html.indexOf(heading, cursor + 1);
+      expect(at).toBeGreaterThan(cursor);
+      cursor = at;
+    }
+    expect(html).toContain("Lead welcome");
+    expect(html).toContain("Red flag, under 3 credits");
+    expect(html).not.toContain("<details class=\"unused\">");
     expect(html).toContain(".side{position:fixed");
     expect(html).toContain("height:100vh");
     expect(html).toContain(">Tasks<");
-    expect(html).toContain("<details class=\"unused\">");
-    expect(html).not.toContain("<details class=\"unused\" open");
-    expect(html).toContain(">59<");
-    expect(html).toContain("Red flag, under 3 credits");
   });
 
   it("shows a number or date under the trigger for each new rule", async () => {

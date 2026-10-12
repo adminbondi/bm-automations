@@ -3,6 +3,7 @@ import type {
   AutomationFilters,
   AutomationSkipRules,
   Channel,
+  FunnelLane,
   JobPayload,
   ScheduledJob,
   SendLogRow,
@@ -37,6 +38,9 @@ type AutomationRow = {
   enabled: number;
   extra_recipient: string | null;
   notes: string | null;
+  funnel?: string | null;
+  position?: number | null;
+  timing_label?: string | null;
 };
 
 const AUTOMATION_INSERT = `INSERT OR IGNORE INTO automations (
@@ -71,6 +75,9 @@ export function rowToAutomation(row: AutomationRow): Automation {
     enabled: row.enabled === 1,
     extraRecipient: row.extra_recipient,
     notes: row.notes,
+    funnel: row.funnel ?? null,
+    position: row.position ?? null,
+    timingLabel: row.timing_label ?? null,
   };
 }
 
@@ -125,6 +132,18 @@ export class Repo {
   async listAutomations(): Promise<Automation[]> {
     const rows = await this.db.prepare(`SELECT * FROM automations ORDER BY id`).all<AutomationRow>();
     return rows.map(rowToAutomation);
+  }
+
+  async listFunnels(): Promise<FunnelLane[]> {
+    const rows = await this.db
+      .prepare(`SELECT name, position, description, expanded FROM funnels ORDER BY position`)
+      .all<{ name: string; position: number; description: string; expanded: number }>();
+    return rows.map((row) => ({
+      name: row.name,
+      position: row.position,
+      description: row.description,
+      expanded: row.expanded === 1,
+    }));
   }
 
   async getAutomation(id: number): Promise<Automation | null> {

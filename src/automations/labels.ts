@@ -1,3 +1,4 @@
+import { TEMPLATE_SUBJECTS } from "./subjects";
 import type { Automation } from "./types";
 
 const LIST: Record<string, { trigger: string; delay: string }> = {
@@ -48,6 +49,25 @@ function fallbackDelay(automation: Automation): string {
   if (automation.timingKind === "birthday_day") return "Birthday";
   if (automation.timingKind === "birthday_month_start") return "1st of birthday month";
   return `Day ${days}`;
+}
+
+export function stepPreview(automation: Automation): string {
+  if (automation.channel === "sms") return (automation.messageText ?? "").replace(/\s+/g, " ").trim();
+  if (automation.templateId !== null) {
+    const subject = TEMPLATE_SUBJECTS[automation.templateId];
+    if (subject) return subject;
+  }
+  const subject = automation.notes?.match(/Subject:\s*([^.]*)/);
+  if (!subject?.[1]) return "No template yet";
+  const line = subject[1].trim();
+  const end = line.search(/[!?]/);
+  return end >= 0 ? line.slice(0, end + 1) : line;
+}
+
+export function stepTimingLabel(automation: Automation): string {
+  const stored = automation.timingLabel?.trim();
+  if (stored) return stored;
+  return listDelay(automation);
 }
 
 export function smsListPreview(text: string): string {

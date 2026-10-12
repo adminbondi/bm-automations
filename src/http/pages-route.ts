@@ -35,12 +35,12 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
     const settings = await readPublicSettings(loaded.repo, loaded.config, loaded.now);
     if (url.pathname === "/automations" && request.method === "GET") {
       const automations = await loaded.repo.listAutomations();
-      const stats = await loaded.repo.sendStats(new Date(loaded.now.getTime() - 7 * 86_400_000).toISOString());
+      const funnels = await loaded.repo.listFunnels();
       return html(adminPage({
         title: "Automations",
         email: session.email,
         active: "automations",
-        body: listPage(automations, stats, url.searchParams),
+        body: listPage(automations, funnels),
       }));
     }
     if (url.pathname === "/automations/new" && request.method === "GET") {

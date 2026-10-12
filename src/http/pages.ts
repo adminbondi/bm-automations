@@ -1,8 +1,8 @@
+import { stepPreview, stepTimingLabel } from "../automations/labels";
 import { LOYALSNAP_LIVE_KEYS } from "../automations/seed";
+import type { Automation, FunnelLane, SendLogRow } from "../automations/types";
 import { derivedAudience, derivedDelay, derivedTrigger, RULE_FIELDS, type AudienceChoice, type DelayChoice, type RuleTrigger, type TriggerChoice } from "./editor";
-import { listDelay, listTrigger, smsListPreview } from "../automations/labels";
-import { TEMPLATE_SUBJECTS, templateLabel } from "../automations/subjects";
-import type { Automation, SendLogRow } from "../automations/types";
+import { TEMPLATE_SUBJECTS } from "../automations/subjects";
 import { escapeHtml } from "./layout";
 import type { PublicSettings } from "../settings/service";
 import { MERGE_FIELDS } from "../merge/fields";
@@ -10,59 +10,64 @@ import { exampleMerge, substitutionRules } from "../merge/values";
 import { REPLY_STOP_FOOTER } from "../sms";
 import { formatSydney } from "../time";
 
-export function listPage(automations: Automation[], stats: Map<number, { lastSent: string | null; sends7d: number }>, query: URLSearchParams): string {
-  const channel = query.get("channel") === "email" || query.get("channel") === "sms" ? query.get("channel") : "all";
-  const status = query.get("status") === "on" || query.get("status") === "off" ? query.get("status") : "all";
-  const emails = automations.filter((row) => row.channel === "email").length;
-  const texts = automations.length - emails;
-  const rows = automations.filter((row) => {
-    if (channel === "email" && row.channel !== "email") return false;
-    if (channel === "sms" && row.channel !== "sms") return false;
-    if (status === "on" && !row.enabled) return false;
-    if (status === "off" && row.enabled) return false;
-    return true;
-  });
-  const off = automations.filter((row) => !row.enabled).length;
-  const banner = off === automations.length
-    ? `All ${automations.length} automations are <b>off</b>. Nothing sends until you switch one on. Turn the matching LoyalSnap automation off the same day.`
-    : `<b>${automations.length - off}</b> of ${automations.length} automations are on. Turn the matching LoyalSnap automation off the same day you switch one on.`;
-  const option = (value: string, label: string, current: string) =>
-    `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`;
-  const live = rows.filter((row) => LOYALSNAP_LIVE_KEYS.has(row.key));
-  const unused = rows.filter((row) => !LOYALSNAP_LIVE_KEYS.has(row.key));
-  const empty = `<tr><td colspan="8" class="muted">No automations match these filters.</td></tr>`;
-  const liveBody = live.map((row) => listRow(row, stats.get(row.id))).join("");
-  const unusedBody = unused.map((row) => listRow(row, stats.get(row.id))).join("");
-  const unusedBlock = unused.length === 0
-    ? ""
-    : `<details class="unused"><summary>Not in use <span class="muted">${unused.length}</span></summary><div class="table-wrap"><table class="cards"><thead><tr><th>On/off</th><th>Name</th><th>Channel</th><th>Trigger</th><th>Delay</th><th>Template / text</th><th>Last sent</th><th>Sends 7d</th></tr></thead><tbody>${unusedBody}</tbody></table></div></details>`;
+const OTHER_LANE = "Other";
+
+export function listPage(automations: Automation[], funnels: FunnelLane[]): string {
+  const onHere = automations.filter((row) => row.enabled).length;
+  const live = automations.filter((row) => LOYALSNAP_LIVE_KEYS.has(row.key)).length;
+  const banner = onHere === 0
+    ? `All ${automations.length} automations are <b>off</b> here. ${live} are on in LoyalSnap today (${live} are being rebuilt in listmonk/Twilio). Greyed steps are not in use in LoyalSnap. Turn the matching LoyalSnap automation off the same day you switch one on.`
+    : `<b>${onHere}</b> of ${automations.length} automations are on here. ${live} are on in LoyalSnap today. Turn the matching LoyalSnap automation off the same day you switch one on.`;
+  const lanes = groupLanes(automations, funnels).map(renderLane).join("");
   return `<header><div><h1>Automations</h1><p class="muted" style="margin:0">Emails via listmonk · texts via Twilio · times in Sydney</p></div></header>
 <div class="banner">${banner}</div>
-<form class="bar" method="get" action="/automations"><div class="filters">
-<label>Channel<select name="channel" onchange="this.form.submit()">${option("all", `All (${automations.length})`, channel ?? "all")}${option("email", `Email (${emails})`, channel ?? "all")}${option("sms", `Text (${texts})`, channel ?? "all")}</select></label>
-<label>Status<select name="status" onchange="this.form.submit()">${option("all", "All", status ?? "all")}${option("on", "On", status ?? "all")}${option("off", "Off", status ?? "all")}</select></label>
-</div><a class="btn" href="/automations/new">+ New automation</a></form>
-<div class="table-wrap"><table class="cards"><thead><tr><th>On/off</th><th>Name</th><th>Channel</th><th>Trigger</th><th>Delay</th><th>Template / text</th><th>Last sent</th><th>Sends 7d</th></tr></thead><tbody>${liveBody || empty}</tbody></table></div>
-${unusedBlock}`;
+<div class="bar"><div class="legend"><span><span class="pill email">✉ Email</span> listmonk</span><span><span class="pill text">💬 Text</span> Twilio</span><span><span class="tag ls">On in LoyalSnap</span></span><span><span class="tag">Not in use</span></span><a href="#" onclick="document.querySelectorAll('details.lane').forEach(d=>d.open=true);return false">Expand all</a><a href="#" onclick="document.querySelectorAll('details.lane').forEach(d=>d.open=false);return false">Collapse all</a></div><a class="btn" href="/automations/new">+ New automation</a></div>
+${lanes}`;
 }
 
-function listRow(row: Automation, stat: { lastSent: string | null; sends7d: number } | undefined): string {
-  const on = row.enabled;
-  const channel = row.channel === "sms"
+function groupLanes(automations: Automation[], funnels: FunnelLane[]): { funnel: FunnelLane; steps: Automation[] }[] {
+  const known = new Set(funnels.map((funnel) => funnel.name));
+  const buckets = new Map<string, Automation[]>(funnels.map((funnel) => [funnel.name, []]));
+  const other = funnels.find((funnel) => funnel.name === OTHER_LANE) ?? {
+    name: OTHER_LANE,
+    position: funnels.length + 1,
+    description: "Automations that are not in a LoyalSnap funnel.",
+    expanded: true,
+  };
+  if (!buckets.has(OTHER_LANE)) buckets.set(OTHER_LANE, []);
+  for (const automation of automations) {
+    const name = automation.funnel && known.has(automation.funnel) ? automation.funnel : OTHER_LANE;
+    buckets.get(name)?.push(automation);
+  }
+  for (const steps of buckets.values()) {
+    steps.sort((left, right) => (left.position ?? Number.MAX_SAFE_INTEGER) - (right.position ?? Number.MAX_SAFE_INTEGER) || left.id - right.id);
+  }
+  const ordered = funnels.some((funnel) => funnel.name === OTHER_LANE) ? funnels : [...funnels, other];
+  return ordered
+    .map((funnel) => ({ funnel, steps: buckets.get(funnel.name) ?? [] }))
+    .filter((lane) => lane.steps.length > 0);
+}
+
+function renderLane(lane: { funnel: FunnelLane; steps: Automation[] }): string {
+  const count = lane.steps.length;
+  const live = lane.steps.filter((step) => LOYALSNAP_LIVE_KEYS.has(step.key)).length;
+  const onHere = lane.steps.filter((step) => step.enabled).length;
+  const noun = count === 1 ? "automation" : "automations";
+  const description = lane.funnel.description
+    ? `<span class="ldesc">${escapeHtml(lane.funnel.description)}</span>`
+    : "";
+  const steps = lane.steps.map((step, index) => renderStep(step, index === 0)).join("");
+  return `<details class="lane" data-funnel="${escapeHtml(lane.funnel.name)}"${lane.funnel.expanded ? " open" : ""}><summary><span class="chev">▶</span><h2>${escapeHtml(lane.funnel.name)}</h2><span class="pill">${count} ${noun}</span><span class="pill${live > 0 ? " ok" : ""}">${live} of ${count} on in LoyalSnap</span><span class="pill">${onHere} of ${count} on here</span>${description}</summary><div class="track">${steps}<a class="add" href="/automations/new">+ Add step</a></div></details>`;
+}
+
+function renderStep(step: Automation, first: boolean): string {
+  const on = step.enabled;
+  const live = LOYALSNAP_LIVE_KEYS.has(step.key);
+  const channel = step.channel === "sms"
     ? `<span class="pill text">💬 Text</span>`
     : `<span class="pill email">✉ Email</span>`;
-  const preview = row.channel === "sms"
-    ? smsListPreview(row.messageText ?? "")
-    : templateLabel(row.templateId);
-  const last = stat?.lastSent ? formatSydney(new Date(stat.lastSent)) : "Never";
-  return `<tr><td data-l="On/off"><form method="post" action="/automations/${row.id}/toggle" style="display:inline"><button class="plain" type="submit" aria-label="${on ? "Switch off" : "Switch on"}"><span class="sw${on ? " on" : ""}"></span></button></form> <span class="small muted">${on ? "On" : "Off"}</span></td>
-<td data-l="Name"><a class="name" href="/automations/${row.id}">${escapeHtml(row.name)}</a></td>
-<td data-l="Channel">${channel}</td>
-<td data-l="Trigger">${escapeHtml(listTrigger(row))}</td>
-<td data-l="Delay">${escapeHtml(listDelay(row))}</td>
-<td data-l="Template / text" class="prev">${escapeHtml(preview)}</td>
-<td data-l="Last sent" class="muted">${escapeHtml(last)}</td>
-<td data-l="Sends 7d">${stat?.sends7d ?? 0}</td></tr>`;
+  const tag = live ? `<span class="tag ls">On in LoyalSnap</span>` : `<span class="tag">Not in use</span>`;
+  return `<div class="conn${first ? " start" : ""}"><span class="dl">${escapeHtml(stepTimingLabel(step))}</span><span class="ln">→</span></div><div class="step${live ? "" : " unused"}" data-key="${escapeHtml(step.key)}"><div class="nm"><a href="/automations/${step.id}">${escapeHtml(step.name)}</a></div><div class="pv">${escapeHtml(stepPreview(step))}</div><div class="ft">${channel}<form method="post" action="/automations/${step.id}/toggle"><button class="plain" type="submit" aria-label="${on ? "Switch off" : "Switch on"}"><span class="sw${on ? " on" : ""}"></span></button></form></div>${tag}</div>`;
 }
 
 export function editPage(automation: Automation | null, settings: PublicSettings, error: string | null, notice: string | null = null): string {

@@ -71,6 +71,19 @@ export type Automation = {
   enabled: boolean;
   extraRecipient: string | null;
   notes: string | null;
+  /** LoyalSnap funnel lane. Null until a migration or a later save assigns one. */
+  funnel?: string | null;
+  /** Step order within the funnel, left to right. */
+  position?: number | null;
+  /** Label drawn on the connector before this step. */
+  timingLabel?: string | null;
+};
+
+export type FunnelLane = {
+  name: string;
+  position: number;
+  description: string;
+  expanded: boolean;
 };
 
 export type Visit = {

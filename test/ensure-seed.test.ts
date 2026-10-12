@@ -4,7 +4,8 @@ import { SEED_AUTOMATIONS } from "../src/automations/seed";
 import { d1Database, Repo } from "../src/db/repo";
 import { createApp } from "../src/index";
 import { loadRuntime } from "../src/pipeline/runtime";
-import { asD1, openSqlite, testEnv, trackingDb } from "./helpers";
+import { mindbodySignature } from "../src/signature";
+import { asD1, emptySnapshot, openSqlite, testEnv, trackingDb } from "./helpers";
 
 describe("ensureSeed hot path", () => {
   it("skips seed writes when migrations already filled the table", async () => {
@@ -35,7 +36,7 @@ describe("ensureSeed hot path", () => {
     expect((await repo.getAutomation(1))?.enabled).toBe(true);
   });
 
-  it("loadRuntime and admin pages do not call ensureSeed", async () => {
+  it("loadRuntime, admin pages, and Mindbody webhooks do not call ensureSeed", async () => {
     const sqlite = openSqlite();
     const env = testEnv(asD1(sqlite));
     let seedCalls = 0;
@@ -55,6 +56,7 @@ describe("ensureSeed hot path", () => {
 
       const app = createApp({
         now: () => new Date("2026-10-11T00:00:00Z"),
+        snapshotClient: async () => emptySnapshot(),
         fetchImpl: async () => {
           throw new Error("unexpected");
         },
@@ -69,6 +71,30 @@ describe("ensureSeed hot path", () => {
       );
       expect(list.status).toBe(200);
       expect(await list.text()).toContain("Lead welcome");
+      expect(seedCalls).toBe(0);
+
+      const body = JSON.stringify({
+        messageId: "m-seed-hotpath",
+        eventId: "client.created",
+        eventData: {
+          siteId: 9853,
+          clientId: "100",
+          email: "ada@example.com",
+          firstName: "Ada",
+          creationDateTime: "2026-10-11T00:00:00Z",
+        },
+      });
+      const signature = await mindbodySignature(body, "sign-key");
+      const webhook = await app.fetch(
+        new Request("https://automations.example/webhooks/mindbody", {
+          method: "POST",
+          headers: { "X-Mindbody-Signature": signature, "Content-Type": "application/json" },
+          body,
+        }),
+        env,
+        {} as ExecutionContext,
+      );
+      expect(webhook.status).toBe(200);
       expect(seedCalls).toBe(0);
     } finally {
       Repo.prototype.ensureSeed = original;

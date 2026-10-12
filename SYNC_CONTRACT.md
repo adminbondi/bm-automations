@@ -40,12 +40,13 @@ Per-send values still go in `POST /api/tx` `data`, including `passEndDate`, `vis
 
 ## Shared module
 
-The field list, the Mindbody-to-contact mapping (ISO dates, E.164 phones, email and SMS opt-out), the Mindbody API client, and the listmonk and Chatwoot contact clients live in `@balancemoves/contacts-core`. The source is `packages/contacts-core` in this repository. bm-automations already depends on that package and imports `CONTACT_FIELDS`, `mapClient`, `MindbodyClient`, `ListmonkClient`, and `normalizePhone` from it.
+The field list, the Mindbody-to-contact mapping (ISO dates, E.164 phones, email and SMS opt-out), the Mindbody API client, and the listmonk and Chatwoot contact clients live in `@balancemoves/contacts-core`. The source is `packages/contacts-core` in this repository. bm-automations already depends on that package and imports `CONTACT_FIELDS`, `CONTACT_ATTRIBUTES`, `mapClient`, `MindbodyClient`, `ListmonkClient`, and `normalizePhone` from it.
 
 The Chatwoot sync Worker is on hold. Leave that Worker as it is. Do not copy these files into it. When that Worker resumes, it depends on the same package:
 
 ```ts
 import {
+  CONTACT_ATTRIBUTES,
   CONTACT_FIELDS,
   mapClient,
   MindbodyClient,
@@ -54,7 +55,7 @@ import {
 } from "@balancemoves/contacts-core";
 ```
 
-`mapClient` turns a Mindbody client payload into the shared attribs. `MindbodyClient.contact` loads that client and returns the same object. `ListmonkClient.upsertContact` writes the listmonk subscriber and sets `blocklisted` when `emailOptOut` is true. `ChatwootContacts.upsert` writes the Chatwoot contact. `CONTACT_FIELDS` is the LoyalSnap merge list below.
+`mapClient` turns a Mindbody client payload into the shared attribs. `MindbodyClient.contact` loads that client and returns the same object. `ListmonkClient.upsertContact` writes the listmonk subscriber and sets `blocklisted` when `emailOptOut` is true. `ChatwootContacts.upsert` writes the Chatwoot contact. `CONTACT_FIELDS` is the LoyalSnap merge list below. `CONTACT_ATTRIBUTES` is the live Chatwoot key list. `STAFF_CONTACT_ATTRIBUTES` is the staff label list in the next section.
 
 ## Chatwoot contact attributes
 
@@ -65,9 +66,9 @@ Listmonk `attribs` for contact state use the same keys as Chatwoot `custom_attri
 | client_id | Client ID |
 | active | active |
 | membership_name | membership name |
-| membership_status | membership status |
+| membership_status | Member status |
 | membership_expiry | membership expiry |
-| packs | packs |
+| packs | Packs |
 | pack_credits_total | pack credits |
 | reformer_credits | Reformer credits |
 | mat_barre_credits | Mat & Barre credits |
@@ -83,6 +84,61 @@ Listmonk `attribs` for contact state use the same keys as Chatwoot `custom_attri
 | intro_last_visit | Intro last visit |
 | intro_next_class | Intro next class |
 | intro_stage | Intro stage |
+
+## Chatwoot attribute labels
+
+These are the staff-facing labels. Intro fields are grouped together. Every label except Mindbody ID has no Mindbody prefix.
+
+The live keys are the table above. `client_id` is the identifier. The table below keeps the older proposed key next to the key the on-hold sync wrote. This repository does not rename live attributes and does not change that Worker.
+
+### One-time rename
+
+When that Worker resumes, rename each existing Chatwoot custom attribute once:
+
+1. Create the attribute definition with the proposed key and the label in the table.
+2. On each contact, copy `custom_attributes.{current key}` onto `custom_attributes.{proposed key}` when the current key has a value and the proposed key is empty.
+3. Remove the current key from the contact after the copy.
+4. Delete the old attribute definition after no contact still stores that key.
+
+Skip `mindbody_id`. It already uses the proposed key and the label Mindbody ID. The live identifier written by this repository is `client_id`.
+
+### Profile
+
+| Label | Proposed key | Current key | Type |
+| --- | --- | --- | --- |
+| Mindbody ID | `mindbody_id` | `mindbody_id` | text |
+| Active | `active` | `mindbody_active` | checkbox |
+
+### Membership
+
+| Label | Proposed key | Current key | Type |
+| --- | --- | --- | --- |
+| Membership name | `membership_name` | `mindbody_membership_name` | text |
+| Member status | `member_status` | `mindbody_membership_status` | list: Active, On Hold, None |
+| Membership expiry | `membership_expiry` | `mindbody_membership_expiry` | date |
+
+### Packs
+
+| Label | Proposed key | Current key | Type |
+| --- | --- | --- | --- |
+| Packs | `packs` | `mindbody_packs` | text |
+| Pack credits | `pack_credits` | `mindbody_pack_credits_total` | number |
+| Pack next expiry | `pack_next_expiry` | `mindbody_pack_next_expiry` | date |
+
+### Intro
+
+| Label | Proposed key | Current key | Type |
+| --- | --- | --- | --- |
+| Intro client | `intro_client` | `mindbody_intro_client` | checkbox |
+| Intro active | `intro_active` | `mindbody_intro_active` | checkbox |
+| Intro visits used | `intro_visits_used` | `mindbody_intro_visits_used` | number |
+| Intro expires | `intro_expires` | `mindbody_intro_expiry` | date |
+| Intro days left | `intro_days_left` | `mindbody_intro_days_left` | number |
+| Intro classes attended | `intro_classes_attended` | `mindbody_intro_classes_attended` | number |
+| Intro classes missed | `intro_classes_missed` | `mindbody_intro_classes_missed` | number |
+| Intro last visit | `intro_last_visit` | `mindbody_intro_last_visit` | date |
+| Intro next class | `intro_next_class` | `mindbody_intro_next_class` | date |
+| Intro stage | `intro_stage` | `mindbody_intro_stage` | list: Not booked yet, Booked not visited yet, Visited, Missed last visit, Expiring soon, Finished |
 
 ## Field list
 

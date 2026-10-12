@@ -38,7 +38,24 @@ export function asD1(sqlite: DatabaseSync): D1Database {
       });
       return wrap([]);
     },
+    async batch(statements: { run(): Promise<unknown> }[]) {
+      for (const statement of statements) await statement.run();
+      return statements.map(() => ({ success: true, meta: { changes: 0 } }));
+    },
   } as unknown as D1Database;
+}
+
+/** Wrap a Db so tests can count seed INSERT batches from ensureSeed. */
+export function trackingDb(db: Db, log: { seedWrites: number }): Db {
+  return {
+    prepare(sql: string) {
+      return db.prepare(sql);
+    },
+    async batch(statements) {
+      log.seedWrites += statements.length;
+      return db.batch(statements);
+    },
+  };
 }
 
 export function testEnv(db: D1Database, extra: Record<string, string> = {}): Env {

@@ -11,7 +11,7 @@ import { html } from "./google";
 import { signInPage } from "./html";
 import { adminPage } from "./layout";
 import { applyEditor, blankAutomation, editorInput } from "./editor";
-import { editPage, editScript, listPage, logCsv, logPage, presentLog, settingsPage, type LogView } from "./pages";
+import { editPage, editScript, eventsPage, listPage, logCsv, logPage, presentLog, settingsPage, type LogView } from "./pages";
 
 const AUTOMATION = /^\/automations\/(\d+)$/;
 const TOGGLE = /^\/automations\/(\d+)\/toggle$/;
@@ -106,6 +106,13 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
         },
       });
     }
+    if (url.pathname === "/events" && request.method === "GET") {
+      const type = url.searchParams.get("type")?.trim() ?? "";
+      const client = url.searchParams.get("client")?.trim() ?? "";
+      const rows = await loaded.repo.listEventLog(100, { eventId: type || null, clientId: client || null });
+      const kind = rows.length > 0 ? "rows" : type || client ? "filtered" : "empty";
+      return html(adminPage({ title: "Events", email: session.email, active: "events", body: eventsPage(rows, url.searchParams, kind) }));
+    }
     if (url.pathname === "/log" && request.method === "GET") {
       const all = await loaded.repo.listSendLog(200, null);
       const body = all.length === 0
@@ -190,7 +197,7 @@ function isPage(pathname: string, method: string): boolean {
   if (pathname === "/" && method === "GET") return true;
   if (pathname === "/automations" && (method === "GET" || method === "POST")) return true;
   if (pathname === "/automations/new" && method === "GET") return true;
-  if ((pathname === "/log" || pathname === "/log.csv") && method === "GET") return true;
+  if ((pathname === "/log" || pathname === "/log.csv" || pathname === "/events") && method === "GET") return true;
   if (pathname === "/settings" && method === "GET") return true;
   if (pathname.startsWith("/settings/") && method === "POST") return true;
   if (pathname.startsWith("/automations/") && (method === "GET" || method === "POST")) return true;

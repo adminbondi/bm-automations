@@ -62,11 +62,17 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
     return { status: 200, body: { duplicate: true } };
   }
   if (event.siteId !== null && String(event.siteId) !== loaded.config.siteId) {
-    if (!readOnly) await loaded.repo.recordMessage(event.messageId, event.eventId);
+    if (!readOnly) {
+      await recordEventLog(loaded, event, "site_id", []);
+      await loaded.repo.recordMessage(event.messageId, event.eventId);
+    }
     return { status: 200, body: { ignored: true, reason: "site_id" } };
   }
   if (!event.clientId) {
-    if (!readOnly) await loaded.repo.recordMessage(event.messageId, event.eventId);
+    if (!readOnly) {
+      await recordEventLog(loaded, event, "no_client", []);
+      await loaded.repo.recordMessage(event.messageId, event.eventId);
+    }
     return { status: 200, body: { ignored: true, reason: "no_client" } };
   }
   try {
@@ -93,6 +99,7 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
     });
     const plans = planAutomations(automations, facts);
     if (!readOnly) {
+      await recordEventLog(loaded, event, null, plans);
       await applyPlans(plans, {
         repo: loaded.repo,
         listmonk: loaded.listmonk,
@@ -116,6 +123,30 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
     log({ event: "webhook_failed", message: error instanceof Error ? error.message : "upstream_failed", messageId: event.messageId });
     return { status: 500, body: { error: "upstream_failed" } };
   }
+}
+
+async function recordEventLog(
+  loaded: Loaded,
+  event: NonNullable<ReturnType<typeof parseMindbodyEvent>>,
+  ignoredReason: string | null,
+  plans: GatedPlan[],
+): Promise<void> {
+  await loaded.repo.recordEventLog({
+    messageId: event.messageId,
+    eventId: event.eventId,
+    clientId: event.clientId,
+    siteId: event.siteId === null ? null : String(event.siteId),
+    occurredAt: event.occurredAt,
+    ignoredReason,
+    matches: plans.map((plan) => ({
+      automationId: plan.automation.id,
+      automationKey: plan.automation.key,
+      phase: plan.phase,
+      outcome: plan.outcome,
+      reason: plan.reason,
+      wouldSend: plan.outcome === "send" ? 1 : 0,
+    })),
+  });
 }
 
 function isDryRunHeader(value: string | null): boolean {

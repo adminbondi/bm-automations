@@ -11,7 +11,7 @@ export function escapeHtml(value: string): string {
 export function adminPage(options: {
   title: string;
   email: string;
-  active: "automations" | "log" | "settings";
+  active: "automations" | "log" | "events" | "settings";
   body: string;
   script?: string;
 }): string {
@@ -24,6 +24,7 @@ export function adminPage(options: {
 <a href="${TASKS_URL}"><span>☰</span>Tasks</a>
 ${nav("automations", "/automations", "⚡", "Automations")}
 ${nav("log", "/log", "📋", "Send log")}
+${nav("events", "/events", "◷", "Events")}
 ${nav("settings", "/settings", "⚙", "Settings")}
 </nav>
 <div class="foot"><div class="user"><div class="avatar">${escapeHtml(person.initials)}</div><div class="small"><div>${escapeHtml(person.label)}</div><div class="muted">${escapeHtml(options.email)}</div></div></div>
@@ -58,6 +59,7 @@ label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mute
 select,input,textarea{font:inherit;color:var(--ink);padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:#fff}textarea{min-height:150px;resize:vertical;width:100%}
 .table-wrap{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr.sub td{background:#fafaf9;padding-top:0}tr.sub table{width:100%;background:transparent}
 th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);white-space:nowrap}td.prev{max-width:300px;color:var(--muted)}
 .pill{display:inline-block;padding:1px 8px;border-radius:999px;background:#e7e5e4;font-size:12px;white-space:nowrap}
 .pill.email{background:#ccfbf1;color:#115e59}.pill.text{background:#ede9fe;color:#5b21b6}

@@ -8,6 +8,7 @@ import type { PublicSettings } from "../settings/service";
 import { MERGE_FIELDS } from "../merge/fields";
 import { exampleMerge, substitutionRules } from "../merge/values";
 import { REPLY_STOP_FOOTER } from "../sms";
+import type { EventLogRow } from "../db/repo";
 import { formatSydney } from "../time";
 
 const OTHER_LANE = "Other";
@@ -200,6 +201,38 @@ export function presentLog(row: SendLogRow, names: Map<number, string>): LogView
     status,
     detail: row.detail || (status === "sent" ? "—" : row.status.replaceAll("_", " ")),
   };
+}
+
+export function eventsPage(rows: EventLogRow[], query: URLSearchParams, kind: "empty" | "filtered" | "rows"): string {
+  const type = query.get("type") ?? "";
+  const client = query.get("client") ?? "";
+  const body = kind === "empty"
+    ? `<p class="muted">No events yet</p>`
+    : kind === "filtered"
+      ? `<p class="muted">No events match these filters.</p>`
+      : `<div class="table-wrap"><table class="cards"><thead><tr><th>Type</th><th>Client id</th><th>Received (Sydney)</th><th>Mindbody time</th><th>Ignored</th></tr></thead><tbody>${rows.map(eventBlock).join("")}</tbody></table></div>`;
+  return `<header><div><h1>Events</h1><p class="muted" style="margin:0">Mindbody webhooks · newest 100 · times in Sydney</p></div></header>
+<form class="bar" method="get" action="/events"><div class="filters">
+<label>Event type<input name="type" value="${escapeHtml(type)}" placeholder="client.created"></label>
+<label>Client id<input name="client" value="${escapeHtml(client)}" placeholder="Client id"></label>
+</div><button class="ghost" type="submit">Filter</button></form>
+${body}`;
+}
+
+function eventBlock(row: EventLogRow): string {
+  const client = row.clientId ? escapeHtml(row.clientId) : "—";
+  const ignored = row.ignoredReason ? escapeHtml(row.ignoredReason) : "—";
+  const head = `<tr><td data-l="Type">${escapeHtml(row.eventId)}</td><td data-l="Client id">${client}</td><td data-l="Received (Sydney)">${escapeHtml(sydneyInstant(row.receivedAt))}</td><td data-l="Mindbody time">${escapeHtml(sydneyInstant(row.occurredAt))}</td><td data-l="Ignored">${ignored}</td></tr>`;
+  if (row.matches.length === 0) return head;
+  const lines = row.matches.map((match) => `<tr><td data-l="Automation">${escapeHtml(match.automationKey)}</td><td data-l="Phase">${escapeHtml(match.phase)}</td><td data-l="Outcome">${escapeHtml(match.outcome)}</td><td data-l="Reason">${escapeHtml(match.reason ?? "")}</td><td data-l="Would send">${match.wouldSend === 1 ? "yes" : "no"}</td></tr>`).join("");
+  return `${head}<tr class="sub"><td colspan="5"><table><thead><tr><th>Automation</th><th>Phase</th><th>Outcome</th><th>Reason</th><th>Would send</th></tr></thead><tbody>${lines}</tbody></table></td></tr>`;
+}
+
+function sydneyInstant(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return formatSydney(date);
 }
 
 export function logCsv(rows: LogView[]): string {

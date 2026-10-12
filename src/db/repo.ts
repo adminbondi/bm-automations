@@ -353,6 +353,112 @@ export class Repo {
       .run();
   }
 
+  async recordEventLog(input: EventLogInsert): Promise<void> {
+    const receivedAt = this.now();
+    const inserted = await this.db
+      .prepare(
+        `INSERT OR IGNORE INTO event_log (
+          message_id, event_id, client_id, site_id, occurred_at, received_at, ignored_reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        input.messageId,
+        input.eventId,
+        input.clientId,
+        input.siteId,
+        input.occurredAt,
+        receivedAt,
+        input.ignoredReason,
+      )
+      .run();
+    if (inserted.changes === 0) return;
+    const row = await this.db
+      .prepare(`SELECT id FROM event_log WHERE message_id = ?`)
+      .bind(input.messageId)
+      .first<{ id: number }>();
+    if (!row) return;
+    for (const match of input.matches) {
+      await this.db
+        .prepare(
+          `INSERT INTO event_log_matches (
+            event_log_id, automation_id, automation_key, phase, outcome, reason, would_send
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          row.id,
+          match.automationId,
+          match.automationKey,
+          match.phase,
+          match.outcome,
+          match.reason,
+          match.wouldSend === 1 ? 1 : 0,
+        )
+        .run();
+    }
+    const cutoff = new Date(Date.parse(receivedAt) - EVENT_LOG_RETENTION_MS).toISOString();
+    await this.db
+      .prepare(
+        `DELETE FROM event_log_matches WHERE event_log_id IN (
+          SELECT id FROM event_log WHERE received_at < ?
+        )`,
+      )
+      .bind(cutoff)
+      .run();
+    await this.db.prepare(`DELETE FROM event_log WHERE received_at < ?`).bind(cutoff).run();
+  }
+
+  async listEventLog(limit: number, filter: { eventId?: string | null; clientId?: string | null } = {}): Promise<EventLogRow[]> {
+    const capped = Math.min(Math.max(limit, 1), 100);
+    const eventId = filter.eventId?.trim() || null;
+    const clientId = filter.clientId?.trim() || null;
+    const rows = await this.db
+      .prepare(
+        `SELECT id, message_id, event_id, client_id, site_id, occurred_at, received_at, ignored_reason
+         FROM event_log
+         WHERE (? IS NULL OR event_id = ?)
+           AND (? IS NULL OR client_id = ?)
+         ORDER BY received_at DESC, id DESC
+         LIMIT ?`,
+      )
+      .bind(eventId, eventId, clientId, clientId, capped)
+      .all<EventLogDbRow>();
+    if (rows.length === 0) return [];
+    const matches = await this.db
+      .prepare(
+        `SELECT id, event_log_id, automation_id, automation_key, phase, outcome, reason, would_send
+         FROM event_log_matches
+         WHERE event_log_id IN (${rows.map(() => "?").join(", ")})
+         ORDER BY id`,
+      )
+      .bind(...rows.map((row) => row.id))
+      .all<EventMatchDbRow>();
+    const byEvent = new Map<number, EventLogMatch[]>();
+    for (const match of matches) {
+      const list = byEvent.get(match.event_log_id) ?? [];
+      list.push({
+        eventLogId: match.event_log_id,
+        automationId: match.automation_id,
+        automationKey: match.automation_key,
+        phase: match.phase,
+        outcome: match.outcome,
+        reason: match.reason,
+        wouldSend: match.would_send === 1 ? 1 : 0,
+      });
+      byEvent.set(match.event_log_id, list);
+    }
+    return rows.map((row) => ({
+      id: row.id,
+      messageId: row.message_id,
+      eventId: row.event_id,
+      clientId: row.client_id,
+      siteId: row.site_id,
+      occurredAt: row.occurred_at,
+      receivedAt: row.received_at,
+      ignoredReason: row.ignored_reason,
+      matches: byEvent.get(row.id) ?? [],
+    }));
+  }
+
   async hasSent(dedupeKey: string): Promise<boolean> {
     const row = await this.db
       .prepare(`SELECT 1 AS ok FROM send_log WHERE dedupe_key = ? AND status = 'sent' LIMIT 1`)
@@ -575,6 +681,71 @@ function mapSendLog(row: SendLogDbRow): SendLogRow {
     createdAt: row.created_at,
   };
 }
+
+const EVENT_LOG_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+export type EventLogMatchInsert = {
+  automationId: number;
+  automationKey: string;
+  phase: string;
+  outcome: string;
+  reason: string;
+  wouldSend: number;
+};
+
+export type EventLogInsert = {
+  messageId: string;
+  eventId: string;
+  clientId: string | null;
+  siteId: string | null;
+  occurredAt: string | null;
+  ignoredReason: string | null;
+  matches: EventLogMatchInsert[];
+};
+
+export type EventLogMatch = {
+  eventLogId: number;
+  automationId: number;
+  automationKey: string;
+  phase: string;
+  outcome: string;
+  reason: string | null;
+  wouldSend: number;
+};
+
+export type EventLogRow = {
+  id: number;
+  messageId: string;
+  eventId: string;
+  clientId: string | null;
+  siteId: string | null;
+  occurredAt: string | null;
+  receivedAt: string;
+  ignoredReason: string | null;
+  matches: EventLogMatch[];
+};
+
+type EventLogDbRow = {
+  id: number;
+  message_id: string;
+  event_id: string;
+  client_id: string | null;
+  site_id: string | null;
+  occurred_at: string | null;
+  received_at: string;
+  ignored_reason: string | null;
+};
+
+type EventMatchDbRow = {
+  id: number;
+  event_log_id: number;
+  automation_id: number;
+  automation_key: string;
+  phase: string;
+  outcome: string;
+  reason: string | null;
+  would_send: number;
+};
 
 export function d1Database(db: D1Database): Db {
   return {

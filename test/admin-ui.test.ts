@@ -61,7 +61,7 @@ describe("admin pages", () => {
     expect(list.status).toBe(200);
     expect(html).toContain("Lead welcome");
     expect(html).toContain("Welcome aboard — we’ve saved your spot!");
-    expect(html).toContain("https://mb-task-dashboard.plain-bush-daad.workers.dev/");
+    expect(html).not.toContain("mb-task-dashboard");
     expect(html).toContain("Trial day 7 – no class booked");
     expect(html).toContain(`All ${SEED_AUTOMATIONS.length} automations are <b>off</b>`);
     const settings = await app.fetch(new Request("https://automations.example/settings", { headers }), env, {} as ExecutionContext);
@@ -123,7 +123,7 @@ describe("admin pages", () => {
     expect(html).not.toContain("<details class=\"unused\">");
     expect(html).toContain(".side{position:fixed");
     expect(html).toContain("height:100vh");
-    expect(html).toContain(">Tasks<");
+    expect(html).not.toContain(">Tasks<");
   });
 
   it("shows a number or date under the trigger for each new rule", async () => {

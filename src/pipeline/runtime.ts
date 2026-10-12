@@ -27,7 +27,6 @@ export type Loaded = {
 
 export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
   const repo = new Repo(d1Database(env.DB), () => deps.now().toISOString());
-  await repo.ensureSeed();
   const config = runtimeConfig(bindingsFromEnv(env));
   const connections = await resolveConnections(repo, config);
   const listmonk = new ListmonkClient(

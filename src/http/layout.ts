@@ -1,5 +1,3 @@
-const TASKS_URL = "https://mb-task-dashboard.plain-bush-daad.workers.dev/";
-
 export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -21,7 +19,6 @@ export function adminPage(options: {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(options.title)} · Balance Moves</title><style>${CSS}</style></head><body>
 <div class="topm"><button class="ghost" type="button" onclick="document.body.classList.toggle('menu')">☰ Menu</button><b>Balance Moves admin</b></div>
 <aside class="side"><div class="rail"><div class="brand">Balance Moves<div class="muted small">Admin</div></div><nav>
-<a href="${TASKS_URL}"><span>☰</span>Tasks</a>
 ${nav("automations", "/automations", "⚡", "Automations")}
 ${nav("log", "/log", "📋", "Send log")}
 ${nav("settings", "/settings", "⚙", "Settings")}

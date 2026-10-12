@@ -20,6 +20,7 @@ export interface Stmt {
 
 export interface Db {
   prepare(sql: string): Stmt;
+  batch(statements: Stmt[]): Promise<void>;
 }
 
 type AutomationRow = {
@@ -124,9 +125,12 @@ export class Repo {
   ) {}
 
   async ensureSeed(): Promise<void> {
-    for (const automation of SEED_AUTOMATIONS) {
-      await this.db.prepare(AUTOMATION_INSERT).bind(...automationValues(automation, SEED_CREATED_AT, SEED_CREATED_AT)).run();
-    }
+    const counted = await this.db.prepare(`SELECT COUNT(*) AS n FROM automations`).first<{ n: number }>();
+    if (Number(counted?.n ?? 0) >= SEED_AUTOMATIONS.length) return;
+    const statements = SEED_AUTOMATIONS.map((automation) =>
+      this.db.prepare(AUTOMATION_INSERT).bind(...automationValues(automation, SEED_CREATED_AT, SEED_CREATED_AT)),
+    );
+    await this.db.batch(statements);
   }
 
   async listAutomations(): Promise<Automation[]> {
@@ -576,16 +580,24 @@ function mapSendLog(row: SendLogDbRow): SendLogRow {
   };
 }
 
+const RAW_STMT = Symbol("d1PreparedStatement");
+
+type WrappedStmt = Stmt & { [RAW_STMT]: D1PreparedStatement };
+
 export function d1Database(db: D1Database): Db {
   return {
     prepare(sql: string): Stmt {
       return wrapD1(db.prepare(sql));
     },
+    async batch(statements: Stmt[]) {
+      await db.batch(statements.map((statement) => (statement as WrappedStmt)[RAW_STMT]));
+    },
   };
 }
 
-function wrapD1(stmt: D1PreparedStatement): Stmt {
+function wrapD1(stmt: D1PreparedStatement): WrappedStmt {
   return {
+    [RAW_STMT]: stmt,
     bind(...values: unknown[]) {
       return wrapD1(stmt.bind(...values));
     },

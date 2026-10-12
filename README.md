@@ -159,7 +159,7 @@ Listmonk sends `Authorization: token <user>:<token>`. Transactional templates 5â
 
 ## Additions beyond the LoyalSnap spec
 
-- D1 rows drive every rule. The worker does not branch on automation id. `ensureSeed` inserts missing keys and does not overwrite owner edits.
+- D1 rows drive every rule. The worker does not branch on automation id. Migrations seed the catalog (`INSERT OR IGNORE`). `ensureSeed` is only for empty databases: one count check, then a single `db.batch()` of inserts, and it never overwrites owner edits. Request handlers do not seed.
 - Webhook message ids are stored after a successful handle so Mindbody retries do not double-send. A Mindbody or listmonk failure returns 500 and does not store the id.
 - Date-based jobs are created even while the row is disabled, so an expiry window is not thrown away.
 - Exact-visit emails and texts (4, 8, 11) stay pending while the count is still short, so the morning cron can finish them. Once a send was due and then blocked, a later count above the target can still send.

@@ -36,6 +36,10 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
     const config = runtimeConfig(bindingsFromEnv(env));
     return Response.json({ ok: true, service: "bm-automations", devMode: config.devMode });
   }
+  if (url.pathname === "/webhooks/mindbody" && (request.method === "HEAD" || request.method === "GET")) {
+    // Mindbody checks the webhook URL with HEAD when a subscription is created; it must answer 200.
+    return new Response(null, { status: 200 });
+  }
   if (url.pathname === "/webhooks/mindbody" && request.method === "POST") {
     const result = await handleWebhook(request, env, deps);
     return Response.json(result.body, { status: result.status });

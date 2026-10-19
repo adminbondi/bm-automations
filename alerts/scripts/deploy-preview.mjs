@@ -1,8 +1,8 @@
 /**
  * Deploy bm-alerts-preview only.
  * Refuses prod. Creates the free-tier queue, deploys --env preview,
- * installs Worker secrets when they are present in the environment,
- * and subscribes the preview queue to failure events.
+ * and installs Worker secrets when they are present in the environment.
+ * Event subscriptions are skipped unless --with-subscriptions is passed.
  *
  * Never prints secret values.
  */
@@ -32,6 +32,13 @@ function refuseProd(argv) {
   const envFlag = argv.indexOf("--env");
   if (envFlag !== -1 && argv[envFlag + 1] === "prod") return true;
   return argv.some((arg) => arg === "prod" || arg === "--env=prod");
+}
+
+export function parseArgs(argv) {
+  return {
+    refuseProd: refuseProd(argv),
+    withSubscriptions: argv.includes("--with-subscriptions"),
+  };
 }
 
 function runWrangler(args, input) {
@@ -266,7 +273,8 @@ async function syncSubscriptions() {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  if (refuseProd(argv)) {
+  const args = parseArgs(argv);
+  if (args.refuseProd) {
     console.error("Refusing to deploy prod. Preview only. Pedro deploys prod after Thiago approves.");
     process.exitCode = 1;
     return;
@@ -279,7 +287,11 @@ export async function main(argv = process.argv.slice(2)) {
   await createQueue();
   await deployWorker();
   await putSecrets();
-  await syncSubscriptions();
+  if (args.withSubscriptions) {
+    await syncSubscriptions();
+  } else {
+    console.log("Skipping event subscriptions. Pass --with-subscriptions to create them.");
+  }
   console.log(`Deployed ${PREVIEW_WORKER}. Prod was not deployed.`);
 }
 

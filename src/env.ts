@@ -33,6 +33,8 @@ export interface RuntimeBindings {
   TWILIO_AUTH_TOKEN?: string;
   LEAD_WEBHOOK_SECRET?: string;
   CONTACT_WRITE_MODE?: string;
+  HANDOFF_SECRET?: string;
+  HOME_ORIGIN?: string;
 }
 
 export type RuntimeConfig = {
@@ -66,6 +68,8 @@ export type RuntimeConfig = {
   twilioAuthToken: string;
   leadWebhookSecret: string;
   contactWriteMode: ContactWriteMode;
+  handoffSecret: string;
+  homeOrigin: string;
 };
 
 export function parseDevMode(value: string | undefined): boolean {
@@ -135,6 +139,8 @@ export function runtimeConfig(env: RuntimeBindings): RuntimeConfig {
     twilioAuthToken: env.TWILIO_AUTH_TOKEN ?? "",
     leadWebhookSecret: env.LEAD_WEBHOOK_SECRET ?? "",
     contactWriteMode: parseContactWriteMode(env.CONTACT_WRITE_MODE),
+    handoffSecret: env.HANDOFF_SECRET ?? "",
+    homeOrigin: env.HOME_ORIGIN ?? "",
   };
 }
 
@@ -174,5 +180,7 @@ export function bindingsFromEnv(env: Env): RuntimeBindings {
     TWILIO_AUTH_TOKEN: secret("TWILIO_AUTH_TOKEN"),
     LEAD_WEBHOOK_SECRET: secret("LEAD_WEBHOOK_SECRET"),
     CONTACT_WRITE_MODE: env.CONTACT_WRITE_MODE,
+    HANDOFF_SECRET: secret("HANDOFF_SECRET"),
+    HOME_ORIGIN: secret("HOME_ORIGIN"),
   };
 }

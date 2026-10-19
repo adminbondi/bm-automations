@@ -1,4 +1,5 @@
 import { isAdminEmail, readSession } from "../auth";
+import { handoffEnabled, homeLoginUrl, redirectToHome } from "../handoff";
 import type { RuntimeConfig } from "../env";
 import { addDays, sydneyDate } from "../time";
 import { normalizePhone } from "@balancemoves/contacts-core";
@@ -20,13 +21,16 @@ const TEST = /^\/automations\/(\d+)\/test$/;
 export async function handleAdminPages(request: Request, env: Env, deps: AppDeps, config: RuntimeConfig, url: URL): Promise<Response | null> {
   if (!isPage(url.pathname, request.method)) return null;
   const session = await readSession(config.sessionSecret, request.headers.get("Cookie"));
-  if (!session || !isAdminEmail(session.email, config.adminEmails)) {
-    if (url.pathname === "/" && request.method === "GET") {
-      return html(signInPage({ configured: Boolean(config.googleClientId && config.googleClientSecret && config.sessionSecret) }));
-    }
+  const viaHome = handoffEnabled(config.handoffSecret);
+  if (!session) {
+    if (viaHome) return redirectToHome(config.homeOrigin);
+    return html(signInPage({ configured: googleConfigured(config) }));
+  }
+  if (!isAdminEmail(session.email, config.adminEmails)) {
     return html(signInPage({
-      configured: Boolean(config.googleClientId && config.googleClientSecret && config.sessionSecret),
-      error: session ? "This Google account is not on the admin list." : undefined,
+      configured: googleConfigured(config),
+      error: "This Google account is not on the admin list.",
+      homeUrl: viaHome ? homeLoginUrl(config.homeOrigin) : undefined,
     }));
   }
   if (url.pathname === "/" && request.method === "GET") return redirect("/automations");
@@ -184,6 +188,10 @@ export async function handleAdminPages(request: Request, env: Env, deps: AppDeps
       body: `<div class="err">Something went wrong loading this page.</div>`,
     }));
   }
+}
+
+function googleConfigured(config: RuntimeConfig): boolean {
+  return Boolean(config.googleClientId && config.googleClientSecret && config.sessionSecret);
 }
 
 function isPage(pathname: string, method: string): boolean {

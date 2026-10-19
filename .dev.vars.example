@@ -18,3 +18,7 @@ SETTINGS_ENCRYPTION_KEY=
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 SMS_ALLOWLIST=
+# Leave HANDOFF_SECRET empty to keep Google login on this worker.
+# Set the same value as bm-home only when home sign-in should take over.
+HANDOFF_SECRET=
+HOME_ORIGIN=

@@ -1,4 +1,5 @@
-import { clearSessionCookie, isAdminEmail, readSession } from "../auth";
+import { clearSessionCookie, createSessionToken, isAdminEmail, readSession, sessionCookie } from "../auth";
+import { handoffEnabled, redirectToHome, verifyHandoffCode } from "../handoff";
 import { log } from "../log";
 import { normalizePhone } from "@balancemoves/contacts-core";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
@@ -49,7 +50,11 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
     return Response.json(result.body, { status: result.status });
   }
   const config = runtimeConfig(bindingsFromEnv(env));
-  if (url.pathname === "/login" && request.method === "GET") return startGoogleLogin(config, url.origin);
+  if (url.pathname === "/auth/handoff" && request.method === "GET") return finishHandoff(config, url);
+  if (url.pathname === "/login" && request.method === "GET") {
+    if (handoffEnabled(config.handoffSecret)) return redirectToHome(config.homeOrigin);
+    return startGoogleLogin(config, url.origin);
+  }
   if (url.pathname === "/auth/google/callback" && request.method === "GET") {
     return finishGoogleLogin(request, config, url, deps.fetchImpl);
   }
@@ -64,9 +69,26 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
   return new Response("not found", { status: 404 });
 }
 
+async function finishHandoff(config: RuntimeConfig, url: URL): Promise<Response> {
+  if (!handoffEnabled(config.handoffSecret)) return new Response("not found", { status: 404 });
+  const claims = await verifyHandoffCode(config.handoffSecret, url.searchParams.get("code") ?? "");
+  if (!claims || !config.sessionSecret) {
+    return new Response("invalid handoff", { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+  const token = await createSessionToken(config.sessionSecret, claims.email);
+  return new Response(null, {
+    status: 302,
+    headers: { Location: "/", "Set-Cookie": sessionCookie(token), "Cache-Control": "no-store" },
+  });
+}
+
 async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeConfig, url: URL): Promise<Response> {
   const session = await readSession(config.sessionSecret, request.headers.get("Cookie"));
-  if (!session || !isAdminEmail(session.email, config.adminEmails)) {
+  if (!session) {
+    if (handoffEnabled(config.handoffSecret)) return redirectToHome(config.homeOrigin);
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+  if (!isAdminEmail(session.email, config.adminEmails)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   try {

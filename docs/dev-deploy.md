@@ -114,6 +114,9 @@ No secret values belong in the repo, in docs, or in `wrangler.jsonc`. Set them w
 | `TWILIO_ACCOUNT_SID` | `bm-automations-dev` | Twilio account for `POST /Messages.json` | Thiago |
 | `TWILIO_AUTH_TOKEN` | `bm-automations-dev` | Twilio auth token | Thiago |
 | `LEAD_WEBHOOK_SECRET` | `bm-automations-dev` | `X-Lead-Token` for `POST /webhooks/lead`. Optional. Unset returns 401. Not in `secrets.required`. | Thiago, when a lead source should call dev |
+| `HANDOFF_SECRET` | `bm-automations-dev` | HMAC key for `GET /auth/handoff`. Optional. Unset keeps Google login and `ADMIN_EMAILS`. Not in `secrets.required`. Must match bm-home before home sign-in is turned on. | Owner, the same value as bm-home |
+
+`HOME_ORIGIN` is an optional plain-text var. Empty uses `https://home.balancemoves.com.au`. Do not put `HANDOFF_SECRET` in git or in `wrangler.jsonc`.
 
 Copy names into `.dev.vars` for local `wrangler dev`. `.dev.vars` is gitignored. `.dev.vars.example` lists the names with empty values.
 

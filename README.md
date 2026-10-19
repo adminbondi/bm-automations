@@ -52,7 +52,7 @@ npm run dev
 
 Apply the local D1 migrations before starting the dev server. `wrangler dev` does not always create those tables on its own.
 
-[Health check](http://127.0.0.1:8791/health) answers `{ "ok": true, "devMode": true }`. `GET /` is the Google sign-in page, and a signed-in session opens [Automations](http://127.0.0.1:8791/automations). `GET /admin/settings` without a session returns `401`.
+[Health check](http://127.0.0.1:8791/health) answers `{ "ok": true, "devMode": true }`. With `HANDOFF_SECRET` unset, `GET /` is the Google sign-in page. A signed-in session opens [Automations](http://127.0.0.1:8791/automations). `GET /admin/settings` without a session returns `401`. When `HANDOFF_SECRET` is set, those staff routes redirect to home instead.
 
 `npm run typecheck` generates nothing by itself. `npm run cf-typegen` refreshes `worker-configuration.d.ts` after a binding change.
 
@@ -60,10 +60,13 @@ Apply the local D1 migrations before starting the dev server. `wrangler dev` doe
 
 Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` cookie (7 days), and `ADMIN_EMAILS`. The cookie name is different from the task dashboard so the two workers do not share a session. An empty allowlist locks the API.
 
+`HANDOFF_SECRET` is optional. Leave it unset to keep this Google login. Set the same value as bm-home, on the dev Worker `bm-automations-dev`, when staff should sign in at home. `HOME_ORIGIN` defaults to `https://home.balancemoves.com.au`. A missing session on a staff page or `/admin/*` then redirects to `{HOME_ORIGIN}/login?return=automations`. `GET /auth/handoff?code=` checks an HMAC-SHA256 code (`base64url(JSON).base64url(sig)`, `app` `automations`, `exp` in unix milliseconds) and sets `bm_automations_session`. The allowlist is unchanged. `/health`, `/webhooks/*`, and the cron do not redirect. The sign-in page does not offer Google while the secret is set.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/login` | Redirect to Google |
+| GET | `/login` | Redirect to Google, or to home when `HANDOFF_SECRET` is set |
 | GET | `/auth/google/callback` | Finish sign-in |
+| GET | `/auth/handoff` | Accept a home handoff code |
 | POST | `/logout` | Clear the session |
 | GET | `/admin/automations` | List rows |
 | POST | `/admin/automations` | Create a row (disabled unless `enabled: true`) |

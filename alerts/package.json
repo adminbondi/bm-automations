@@ -1,0 +1,18 @@
+{
+  "name": "bm-alerts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env preview --local --ip 0.0.0.0 --port 8792",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "deploy:preview": "node scripts/deploy-preview.mjs",
+    "cf-typegen": "wrangler types --env preview --include-runtime=false"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261011.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.42.0"
+  }
+}

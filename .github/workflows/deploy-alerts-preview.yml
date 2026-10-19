@@ -1,0 +1,46 @@
+# Deploys bm-alerts-preview only. Does not deploy bm-alerts (prod).
+# Uses the same Cloudflare Actions secrets as deploy-dev.yml.
+name: deploy-alerts-preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "alerts/**"
+      - ".github/workflows/deploy-alerts-preview.yml"
+  pull_request:
+    paths:
+      - "alerts/**"
+      - ".github/workflows/deploy-alerts-preview.yml"
+
+concurrency:
+  group: bm-alerts-preview
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alerts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: alerts/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Deploy bm-alerts-preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          GITHUB_WEBHOOK_SECRET: ${{ secrets.GITHUB_WEBHOOK_SECRET }}
+        run: node scripts/deploy-preview.mjs

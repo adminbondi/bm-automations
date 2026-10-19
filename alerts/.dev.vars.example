@@ -1,0 +1,9 @@
+# Copy to alerts/.dev.vars for `wrangler dev --env preview`. Never commit .dev.vars.
+# Worker secrets. Values stay empty here.
+
+SLACK_BOT_TOKEN=
+GITHUB_WEBHOOK_SECRET=
+
+# Optional. A read token (Workers Builds Configuration: Read) fills the
+# error line on a failed Workers Builds alert. Leave empty to skip log lookup.
+CLOUDFLARE_API_TOKEN=

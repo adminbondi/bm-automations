@@ -1,0 +1,83 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Top-level name matches preview so a bare `wrangler deploy` cannot publish prod.
+  // Supported targets are only `--env preview` (bm-alerts-preview) and `--env prod` (bm-alerts).
+  // Bindings are not inherited. preview and prod each repeat vars, secrets, and queues.
+  "name": "bm-alerts-preview",
+  "account_id": "a1e049769abbd70837e055ac5a0f9c7b",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "vars": {
+    "WORKER_NAME": "bm-alerts-preview",
+    "SLACK_CHANNEL_ID": "C0CABUPL2BW"
+  },
+  "secrets": {
+    "required": ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET"]
+  },
+  "queues": {
+    "consumers": [
+      {
+        "queue": "bm-alerts-preview",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3
+      }
+    ]
+  },
+  "env": {
+    "preview": {
+      "name": "bm-alerts-preview",
+      "vars": {
+        "WORKER_NAME": "bm-alerts-preview",
+        "SLACK_CHANNEL_ID": "C0CABUPL2BW"
+      },
+      "secrets": {
+        "required": ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET"]
+      },
+      "queues": {
+        "consumers": [
+          {
+            "queue": "bm-alerts-preview",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 3
+          }
+        ]
+      }
+    },
+    "prod": {
+      "name": "bm-alerts",
+      "vars": {
+        "WORKER_NAME": "bm-alerts",
+        "SLACK_CHANNEL_ID": "C0CABUPL2BW"
+      },
+      "secrets": {
+        "required": ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET"]
+      },
+      "queues": {
+        "consumers": [
+          {
+            "queue": "bm-alerts",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 3
+          }
+        ]
+      }
+    }
+  }
+}

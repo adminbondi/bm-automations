@@ -9,15 +9,15 @@ Posts failure alerts to the Balance Moves Slack channel `#bm-alerts` (`C0CABUPL2
 
 Cloudflare account `a1e049769abbd70837e055ac5a0f9c7b`. CI and `scripts/deploy-preview.mjs` deploy **preview only**. Prod is not deployed from this repo's workflows.
 
-The top-level Wrangler name is `bm-alerts-preview`, so a bare `wrangler deploy` publishes preview rather than prod. The supported commands are `wrangler deploy --env preview` and, after the owner approves, `wrangler deploy --env prod`.
+The top-level Wrangler name is `bm-alerts-preview`, so a bare `wrangler deploy` publishes preview rather than prod. The supported commands are `wrangler deploy --env preview` and `wrangler deploy --env prod`.
 
 ## What gets posted
 
 Plain text, one message per failure.
 
 1. **GitHub Actions.** `POST /webhooks/github` accepts `workflow_run` events whose action is `completed` and whose conclusion is `failure`, `cancelled`, or `timed_out`. The body is checked against `X-Hub-Signature-256` (HMAC SHA-256 of the raw body). The message names the repo, workflow, branch, commit message, who triggered the run, and the run link.
-2. **Workers Builds.** The preview queue consumes `build.failed` and `build.canceled` only. The message names the worker, branch, commit, author, and error, plus a dashboard link. Started and succeeded builds are acked and not posted.
-3. **Workflow instances.** The same queue consumes `instance.errored` only. Completed, queued, and started instances are ignored.
+2. **Workers Builds.** The queue consumer handles `build.failed` and `build.canceled` only. The message names the worker, branch, commit, author, and error, plus a dashboard link. Started and succeeded builds are acked and not posted.
+3. **Workflow instances.** The same consumer handles `instance.errored` only. Completed, queued, and started instances are ignored.
 
 `GET /` answers `{worker name} is up. It posts failures only.` It does not call Slack.
 
@@ -44,7 +44,7 @@ GitHub Actions deploy uses the same names as `.github/workflows/deploy-dev.yml`:
 
 | Name | Purpose |
 | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Deploy the worker, create the queue, create event subscriptions. Needs Workers Scripts Edit and Queues Edit. |
+| `CLOUDFLARE_API_TOKEN` | Deploy the worker and create the queue. With `--with-subscriptions`, also create event subscriptions. Needs Workers Scripts Edit and Queues Edit. |
 | `CLOUDFLARE_ACCOUNT_ID` | Optional. Wrangler also reads the account id in `wrangler.jsonc`. |
 
 ## Preview deploy
@@ -56,15 +56,22 @@ npm test
 node scripts/deploy-preview.mjs
 ```
 
+Subscriptions are created only with `--with-subscriptions`:
+
+```bash
+node scripts/deploy-preview.mjs --with-subscriptions
+```
+
 The script:
 
 1. Refuses any `prod` argument.
 2. Creates queue `bm-alerts-preview` with a 24 hour retention (the Workers Free maximum).
 3. Runs `wrangler deploy --env preview`.
-4. Subscribes **each current Worker script** to `build.failed,build.canceled`. The event source `workersBuilds.worker` requires a worker name, so this is one subscription per script, not one account-wide hook. No script in this account uses Workers Builds today, so these subscriptions stay quiet until one does. Re-run the script after a new Worker is added.
-5. Subscribes each Workflow whose name does not end in `-test` to `instance.errored`.
+4. Skips event subscriptions unless `--with-subscriptions` is passed. With that flag it subscribes **each current Worker script** to `build.failed,build.canceled` and each Workflow whose name does not end in `-test` to `instance.errored`. The event source `workersBuilds.worker` requires a worker name, so this is one subscription per script, not one account-wide hook. Without the flag, the script logs that subscriptions were skipped and continues.
 
-`.github/workflows/deploy-alerts-preview.yml` runs that script on pull requests that touch `alerts/`, on pushes to `main`, and via `workflow_dispatch`. It never deploys prod.
+The 30 Workers Builds and Workflow event subscriptions now live on the prod `bm-alerts` queue. Cloudflare allows one subscription per resource, so preview cannot subscribe the same resources.
+
+`.github/workflows/deploy-alerts-preview.yml` runs that script without `--with-subscriptions` on pull requests that touch `alerts/`, on pushes to `main`, and via `workflow_dispatch`. It never deploys prod.
 
 Free tier: Queues includes 10,000 operations a day. Subscriptions are failure events only, so successful builds do not enter the queue. Workers Free is 100,000 requests a day.
 
@@ -105,11 +112,11 @@ The Workflow event payload does not include the error text. The Slack message sa
 
 ## Prod
 
-Do not deploy prod from this change. After Thiago approves and Pedro deploys `npx wrangler deploy --env prod` from `alerts/`:
+Prod is deployed: Worker `bm-alerts`, queue `bm-alerts`. The 30 Workers Builds and Workflow event subscriptions live on that queue.
 
-1. Put the same two Worker secrets with `--env prod`.
-2. Create queue `bm-alerts` (24 hour retention) and move the event subscriptions onto it. Delete the preview subscriptions, or each failure will post twice.
-3. Point the GitHub webhook at the `bm-alerts` workers.dev URL.
+The GitHub webhook re-point is still pending. Until the webhook targets the `bm-alerts` workers.dev URL (`/webhooks/github`), GitHub Actions failures still arrive at the preview worker.
+
+`scripts/deploy-preview.mjs` refuses a `prod` argument. Workflows in this repo do not deploy prod.
 
 ## bm-short-links
 

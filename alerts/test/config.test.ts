@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { hookBody, resolveWebhookUrl } from "../scripts/register-github-webhook.mjs";
 import {
   BUILD_EVENTS,
+  parseArgs,
   PREVIEW_ENV,
   PREVIEW_QUEUE,
   PREVIEW_WORKER,
@@ -46,6 +47,30 @@ describe("preview and prod only", () => {
     expect(source).toContain("Refusing to deploy prod");
     expect(source).not.toContain("build.succeeded");
     expect(source).not.toContain("instance.completed");
+  });
+});
+
+describe("deploy-preview flag parsing", () => {
+  it("creates event subscriptions only when --with-subscriptions is passed", () => {
+    expect(parseArgs([])).toEqual({ refuseProd: false, withSubscriptions: false });
+    expect(parseArgs(["--env", "preview"])).toEqual({ refuseProd: false, withSubscriptions: false });
+    expect(parseArgs(["--with-subscriptions"])).toEqual({ refuseProd: false, withSubscriptions: true });
+    expect(parseArgs(["--env", "preview", "--with-subscriptions"])).toEqual({
+      refuseProd: false,
+      withSubscriptions: true,
+    });
+    expect(parseArgs(["--env", "prod"])).toEqual({ refuseProd: true, withSubscriptions: false });
+    expect(parseArgs(["prod"])).toEqual({ refuseProd: true, withSubscriptions: false });
+    expect(parseArgs(["--env=prod"])).toEqual({ refuseProd: true, withSubscriptions: false });
+    expect(parseArgs(["--env", "prod", "--with-subscriptions"])).toEqual({
+      refuseProd: true,
+      withSubscriptions: true,
+    });
+
+    const source = readFileSync(path.join(root, "scripts", "deploy-preview.mjs"), "utf8");
+    expect(source).toContain("Skipping event subscriptions. Pass --with-subscriptions to create them.");
+    expect(source).toMatch(/if \(args\.withSubscriptions\) \{\s*await syncSubscriptions\(\);/);
+    expect(source).toContain("Refusing to deploy prod");
   });
 });
 

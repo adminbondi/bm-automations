@@ -1,6 +1,8 @@
-export function signInPage(options: { configured: boolean; error?: string }): string {
+export function signInPage(options: { configured: boolean; error?: string; homeUrl?: string }): string {
   const error = options.error ? `<p class="error">${escapeHtml(options.error)}</p>` : "";
-  const action = options.configured
+  const action = options.homeUrl
+    ? `<a class="btn" href="${escapeHtml(options.homeUrl)}">Back to Balance Moves</a>`
+    : options.configured
     ? `<a class="btn" href="/login">Sign in with Google</a>`
     : `<p class="muted">Google login is not configured yet. Add <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>SESSION_SECRET</code>, and <code>ADMIN_EMAILS</code>.</p>`;
   return layout(

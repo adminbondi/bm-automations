@@ -73,7 +73,7 @@ async function finishHandoff(config: RuntimeConfig, url: URL): Promise<Response>
   if (!handoffEnabled(config.handoffSecret)) return new Response("not found", { status: 404 });
   const claims = await verifyHandoffCode(config.handoffSecret, url.searchParams.get("code") ?? "");
   if (!claims || !config.sessionSecret) {
-    return new Response("invalid handoff", { status: 400, headers: { "Cache-Control": "no-store" } });
+    return Response.json({ ok: false, error: "invalid_handoff_code" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
   const token = await createSessionToken(config.sessionSecret, claims.email);
   return new Response(null, {

@@ -56,6 +56,13 @@ describe("staff home handoff", () => {
     expect(await response.text()).not.toContain("Sign in with Google");
   });
 
+  it("answers the bm-home probe code with 401 and no redirect", async () => {
+    const { app, env } = harness({ HANDOFF_SECRET: SECRET });
+    const response = await app.fetch(new Request("https://automations.example/auth/handoff?code=bm-home-probe"), env, {} as ExecutionContext);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Location")).toBeNull();
+  });
+
   it("rejects a bad signature", async () => {
     const { app, env } = harness({ HANDOFF_SECRET: SECRET });
     const signed = await code();
@@ -64,7 +71,7 @@ describe("staff home handoff", () => {
       env,
       {} as ExecutionContext,
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(401);
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -75,7 +82,7 @@ describe("staff home handoff", () => {
       env,
       {} as ExecutionContext,
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(401);
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 
@@ -86,7 +93,7 @@ describe("staff home handoff", () => {
       env,
       {} as ExecutionContext,
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(401);
     expect(response.headers.get("Set-Cookie")).toBeNull();
   });
 

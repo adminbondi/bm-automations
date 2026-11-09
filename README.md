@@ -62,6 +62,8 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 
 `HANDOFF_SECRET` is optional. Leave it unset to keep this Google login. Set the same value as bm-home, on the dev Worker `bm-automations-dev`, when staff should sign in at home. `HOME_ORIGIN` defaults to `https://home.balancemoves.com.au`. A missing session on a staff page or `/admin/*` then redirects to `{HOME_ORIGIN}/login?return=automations`. `GET /auth/handoff?code=` checks an HMAC-SHA256 code (`base64url(JSON).base64url(sig)`, `app` `automations`, `exp` in unix milliseconds) and sets `bm_automations_session`. The allowlist is unchanged. `/health`, `/webhooks/*`, and the cron do not redirect. The sign-in page does not offer Google while the secret is set.
 
+`AGENT_READ_TOKEN` is an optional Worker secret for support bots. When set, `Authorization: Bearer <token>` may call **only** `GET /admin/send-log` (constant-time compare). Every other `/admin` route and any non-GET with only that token is rejected the same as an unauthenticated request. If the secret is unset or empty, the bearer path is off. Staff cookie auth is unchanged.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/login` | Redirect to Google, or to home when `HANDOFF_SECRET` is set |
@@ -72,7 +74,7 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 | POST | `/admin/automations` | Create a row (disabled unless `enabled: true`) |
 | GET, PATCH | `/admin/automations/:id` | Read or update |
 | POST | `/admin/automations/:id/toggle` | Flip `enabled` |
-| GET | `/admin/send-log` | Recent sends (`limit`, `automationId`) |
+| GET | `/admin/send-log` | Recent sends. Query: `limit`, `automationId`, `email`, `clientId`, `since`, `until`, `status`. Rows: `id`, `dedupeKey`, `automationId`, `clientId`, `channel`, `templateId`, `email`, `phone`, `status`, `detail`, `createdAt` |
 | GET, PATCH | `/admin/settings` | Connection settings. Secrets are write-only |
 | POST | `/admin/settings/test/listmonk` | Authenticated listmonk check |
 | POST | `/admin/settings/test/twilio` | Test SMS to an allowlisted number |

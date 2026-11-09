@@ -1,4 +1,11 @@
-import { clearSessionCookie, createSessionToken, isAdminEmail, readSession, sessionCookie } from "../auth";
+import {
+  authorizeAgentReadToken,
+  clearSessionCookie,
+  createSessionToken,
+  isAdminEmail,
+  readSession,
+  sessionCookie,
+} from "../auth";
 import { handoffEnabled, redirectToHome, verifyHandoffCode } from "../handoff";
 import { log } from "../log";
 import { normalizePhone } from "@balancemoves/contacts-core";
@@ -8,6 +15,7 @@ import { runScheduled } from "../pipeline/cron";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
 import { noteListmonkCheck, readPublicSettings, writeSettings, type SettingsPatch } from "../settings/service";
+import type { Repo } from "../db/repo";
 import { MERGE_FIELDS } from "../merge/fields";
 import { exampleMerge } from "../merge/values";
 import { withReplyStop } from "../sms";
@@ -83,8 +91,20 @@ async function finishHandoff(config: RuntimeConfig, url: URL): Promise<Response>
 }
 
 async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeConfig, url: URL): Promise<Response> {
+  const agentRead = await authorizeAgentReadToken(config.agentReadToken, request.headers.get("Authorization"));
   const session = await readSession(config.sessionSecret, request.headers.get("Cookie"));
+  const sendLogGet = url.pathname === "/admin/send-log" && request.method === "GET";
   if (!session) {
+    if (agentRead && sendLogGet) {
+      try {
+        const loaded = await loadRuntime(env, deps);
+        return Response.json({ sendLog: await querySendLog(loaded.repo, url) });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "error";
+        log({ event: "admin_failed", message });
+        return Response.json({ error: "admin_failed" }, { status: 500 });
+      }
+    }
     if (handoffEnabled(config.handoffSecret)) return redirectToHome(config.homeOrigin);
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -129,11 +149,8 @@ async function admin(request: Request, env: Env, deps: AppDeps, config: RuntimeC
         throw error;
       }
     }
-    if (url.pathname === "/admin/send-log" && request.method === "GET") {
-      const limit = Number(url.searchParams.get("limit") ?? "50");
-      const automationId = url.searchParams.get("automationId");
-      const rows = await loaded.repo.listSendLog(Number.isFinite(limit) ? limit : 50, automationId ? Number(automationId) : null);
-      return Response.json({ sendLog: rows });
+    if (sendLogGet) {
+      return Response.json({ sendLog: await querySendLog(loaded.repo, url) });
     }
     if (url.pathname === "/admin/settings" && request.method === "GET") {
       return Response.json(await readPublicSettings(loaded.repo, loaded.config, loaded.now));
@@ -204,6 +221,23 @@ async function readJson(request: Request): Promise<unknown> {
   const text = await request.text();
   if (!text) return {};
   return JSON.parse(text);
+}
+
+async function querySendLog(repo: Repo, url: URL) {
+  const limit = Number(url.searchParams.get("limit") ?? "50");
+  const automationId = url.searchParams.get("automationId");
+  const email = url.searchParams.get("email");
+  const clientId = url.searchParams.get("clientId");
+  const since = url.searchParams.get("since");
+  const until = url.searchParams.get("until");
+  const status = url.searchParams.get("status");
+  return repo.listSendLog(Number.isFinite(limit) ? limit : 50, automationId ? Number(automationId) : null, {
+    email: email || null,
+    clientId: clientId || null,
+    since: since || null,
+    until: until || null,
+    status: status || null,
+  });
 }
 
 export { publicPlan };

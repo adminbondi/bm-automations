@@ -425,14 +425,44 @@ export class Repo {
     return stats;
   }
 
-  async listSendLog(limit: number, automationId: number | null): Promise<SendLogRow[]> {
+  async listSendLog(
+    limit: number,
+    automationId: number | null,
+    filters: SendLogFilters = {},
+  ): Promise<SendLogRow[]> {
     const capped = Math.min(Math.max(limit, 1), 200);
-    const rows = automationId === null
-      ? await this.db.prepare(`SELECT * FROM send_log ORDER BY id DESC LIMIT ?`).bind(capped).all<SendLogDbRow>()
-      : await this.db
-          .prepare(`SELECT * FROM send_log WHERE automation_id = ? ORDER BY id DESC LIMIT ?`)
-          .bind(automationId, capped)
-          .all<SendLogDbRow>();
+    const where: string[] = [];
+    const values: unknown[] = [];
+    if (automationId !== null && Number.isFinite(automationId)) {
+      where.push("automation_id = ?");
+      values.push(automationId);
+    }
+    if (filters.email) {
+      where.push("LOWER(email) = ?");
+      values.push(filters.email.trim().toLowerCase());
+    }
+    if (filters.clientId) {
+      where.push("client_id = ?");
+      values.push(filters.clientId.trim());
+    }
+    if (filters.since) {
+      where.push("created_at >= ?");
+      values.push(filters.since);
+    }
+    if (filters.until) {
+      where.push("created_at <= ?");
+      values.push(filters.until);
+    }
+    if (filters.status) {
+      where.push("status = ?");
+      values.push(filters.status);
+    }
+    const sql =
+      where.length === 0
+        ? `SELECT * FROM send_log ORDER BY id DESC LIMIT ?`
+        : `SELECT * FROM send_log WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`;
+    values.push(capped);
+    const rows = await this.db.prepare(sql).bind(...values).all<SendLogDbRow>();
     return rows.map(mapSendLog);
   }
 
@@ -549,6 +579,14 @@ export class Repo {
     await this.db.prepare(`DELETE FROM mindbody_staff_token WHERE caller = ?`).bind(caller).run();
   }
 }
+
+export type SendLogFilters = {
+  email?: string | null;
+  clientId?: string | null;
+  since?: string | null;
+  until?: string | null;
+  status?: string | null;
+};
 
 type SendLogDbRow = {
   id: number;

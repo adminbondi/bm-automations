@@ -18,6 +18,9 @@ SETTINGS_ENCRYPTION_KEY=
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 SMS_ALLOWLIST=
+# Optional. Bearer token for GET /admin/send-log only (Authorization: Bearer <token>).
+# Empty/unset keeps that path closed. Do not use for other /admin routes.
+AGENT_READ_TOKEN=
 # Leave HANDOFF_SECRET empty to keep Google login on this worker.
 # Set the same value as bm-home only when home sign-in should take over.
 HANDOFF_SECRET=

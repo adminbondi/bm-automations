@@ -28,8 +28,11 @@ function stepKeys(html: string): string[] {
 describe("funnel lanes", () => {
   it("assigns every automation to one lane without changing the on/off flag", () => {
     const sql = readFileSync("migrations/0007_funnels.sql", "utf8");
-    expect(sql).toBe(funnelMigrationSql());
+    // 0007 is the LoyalSnap funnel snapshot. Black Friday lands in 0008; keep regenerating
+    // funnelMigrationSql() for docs/checks without rewriting history.
+    expect(sql).toContain("TRIAL FUNNEL");
     expect(sql).not.toMatch(/\benabled\b/i);
+    expect(funnelMigrationSql()).toContain("Black Friday automation");
     expect(new Set(LANE_STEPS.map((step) => step.key)).size).toBe(LANE_STEPS.length);
     expect(new Set(LANE_STEPS.map((step) => step.key))).toEqual(new Set(SEED_AUTOMATIONS.map((row) => row.key)));
     expect(SEED_AUTOMATIONS.every((row) => row.enabled === false)).toBe(true);
@@ -43,6 +46,21 @@ describe("funnel lanes", () => {
     db.exec(readFileSync("migrations/0007_funnels.sql", "utf8"));
     const enabledAfter = db.prepare(`SELECT key, enabled FROM automations ORDER BY id`).all() as { key: string; enabled: number }[];
     expect(enabledAfter).toEqual(enabledBefore);
+    db.exec(readFileSync("migrations/0008_black_friday_moments.sql", "utf8"));
+    const afterBf = db.prepare(`SELECT key, enabled, funnel, timing_label FROM automations WHERE key LIKE 'bf-intro-moment-%' ORDER BY id`).all() as {
+      key: string;
+      enabled: number;
+      funnel: string;
+      timing_label: string;
+    }[];
+    expect(afterBf).toEqual([
+      { key: "bf-intro-moment-1", enabled: 0, funnel: "Black Friday automation", timing_label: "Day 0" },
+      { key: "bf-intro-moment-2", enabled: 0, funnel: "Black Friday automation", timing_label: "Day 3" },
+      { key: "bf-intro-moment-3", enabled: 0, funnel: "Black Friday automation", timing_label: "Day 6" },
+    ]);
+    expect(
+      (db.prepare(`SELECT enabled FROM automations`).all() as { enabled: number }[]).every((row) => row.enabled === 0),
+    ).toBe(true);
 
     const rows = db.prepare(`SELECT key, funnel, position, timing_label, enabled FROM automations`).all() as {
       key: string;
@@ -84,18 +102,27 @@ describe("funnel lanes", () => {
     expect(html).toContain("0 of 8 on in LoyalSnap");
     expect(html).toContain("0 of 8 on here");
     expect(html).toContain("1 of 5 on in LoyalSnap");
-    expect(html).toContain("All 72 automations are <b>off</b> here. 13 are on in LoyalSnap today");
+    expect(html).toContain("All 75 automations are <b>off</b> here. 13 are on in LoyalSnap today");
     expect(html).toContain("2+ visits / 14d");
     expect(html).toContain("Under 3 credits");
     expect(html).toContain("Expiry −3d");
     expect(html).toContain("Is now a better time?");
     expect(html).not.toContain("LoyalSnap template Leads followup");
     expect(html).toContain("Congrats on completing your 99th class!");
+    expect(html).toContain("Black Friday automation");
+    expect(html).toContain("Moment 1 — Start");
+    expect(html).toContain("Moment 2 — Midway");
+    expect(html).toContain("Moment 3 — Early Bird Access");
+    expect(html).toContain("BF Intro holder - Moment 1 - Start");
+    expect(html).toMatch(/class="step unused" data-key="bf-intro-moment-1"/);
+    expect(html).toMatch(/class="step unused" data-key="bf-intro-moment-2"/);
+    expect(html).toMatch(/class="step unused" data-key="bf-intro-moment-3"/);
     expect(html).toMatch(/class="step" data-key="lead-immediate"/);
     expect(html).toMatch(/class="step unused" data-key="lead-day-2-text"/);
     expect(html).toMatch(/class="step unused" data-key="red-flag-under-3-credits"/);
     expect(html).toContain('action="/automations/1/toggle"');
     expect(html).toContain('aria-label="Switch on"');
+    expect(html).toContain('data-funnel="Black Friday automation" open');
     expect(html).toContain('data-funnel="LEAD FUNNEL" open');
     expect(html).toContain('data-funnel="CLASSPASS" open');
     expect(html).not.toContain('data-funnel="LAPSED CLIENT FUNNEL" open');

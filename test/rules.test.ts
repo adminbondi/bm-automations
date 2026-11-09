@@ -60,6 +60,43 @@ describe("automation rules", () => {
     expect(decide("trial-purchased", { eventId: "clientSale.created", candidatePackageNames: ["Casual"] }).reason).toBe("package_filter_miss");
   });
 
+  it("Black Friday Moments: day 0 send, day 3/6 schedule from Intro Pass sale", () => {
+    const m1 = decide("bf-intro-moment-1", { eventId: "clientSale.created", candidatePackageNames: [intro] });
+    expect(m1.action).toBe("send");
+    expect(m1.templateId).toBe(14);
+    expect(decide("bf-intro-moment-1", { eventId: "clientSale.created", candidatePackageNames: ["Casual"] }).reason).toBe(
+      "package_filter_miss",
+    );
+
+    const m2 = decide("bf-intro-moment-2", {
+      phase: "schedule",
+      eventId: "clientSale.created",
+      anchorSydney: "2026-11-01",
+      candidatePackageNames: [intro],
+    });
+    expect(m2.action).toBe("schedule");
+    expect(m2.dueOn).toBe("2026-11-04");
+    expect(m2.templateId).toBe(15);
+    expect(
+      decide("bf-intro-moment-2", {
+        phase: "cron",
+        dueOn: "2026-11-04",
+        todaySydney: "2026-11-04",
+        candidatePackageNames: [intro],
+      }).action,
+    ).toBe("send");
+
+    const m3 = decide("bf-intro-moment-3", {
+      phase: "schedule",
+      eventId: "clientSale.created",
+      anchorSydney: "2026-11-01",
+      candidatePackageNames: [intro],
+    });
+    expect(m3.action).toBe("schedule");
+    expect(m3.dueOn).toBe("2026-11-07");
+    expect(m3.templateId).toBe(16);
+  });
+
   it("4 sends the third intro visit and holds a short count", () => {
     const visits = [1, 2, 3].map((id) => visit({ id, serviceName: intro }));
     const sent = decide("trial-third-class", {

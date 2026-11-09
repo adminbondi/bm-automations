@@ -5,6 +5,12 @@ function sqlString(value: string): string {
 /** LoyalSnap funnel lanes, in the order Thiago approved. `Other` holds a row with no funnel. */
 export const LANE_ORDER: { name: string; description: string; expanded: boolean }[] = [
   {
+    name: "Black Friday automation",
+    description:
+      "BF Intro Moments 1–3 for the 7-day Intro Pass (product 486). Listmonk TX templates 14 / 15 / 16. Offsets are days since activation — edit the row’s delay days in the UI if you want day 4 instead of 3, or last day instead of 6.",
+    expanded: true,
+  },
+  {
     name: "LEAD FUNNEL",
     description: "Automations for Leads who haven't yet booked or taken a class",
     expanded: true,
@@ -63,6 +69,10 @@ export type LaneStep = {
  * Birthday steps and classpass-two-in-two-weeks are still unconfirmed by Thiago.
  */
 export const LANE_STEPS: LaneStep[] = [
+  { key: "bf-intro-moment-1", funnel: "Black Friday automation", timingLabel: "Day 0" },
+  { key: "bf-intro-moment-2", funnel: "Black Friday automation", timingLabel: "Day 3" },
+  { key: "bf-intro-moment-3", funnel: "Black Friday automation", timingLabel: "Day 6" },
+
   { key: "lead-immediate", funnel: "LEAD FUNNEL", timingLabel: "Day 0" },
   { key: "lead-day-2-text", funnel: "LEAD FUNNEL", timingLabel: "+2 days" },
   { key: "lead-day-7-text", funnel: "LEAD FUNNEL", timingLabel: "+7 days" },

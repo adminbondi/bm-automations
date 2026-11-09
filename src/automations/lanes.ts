@@ -5,6 +5,12 @@ function sqlString(value: string): string {
 /** LoyalSnap funnel lanes, in the order Thiago approved. `Other` holds a row with no funnel. */
 export const LANE_ORDER: { name: string; description: string; expanded: boolean }[] = [
   {
+    name: "Black Friday automation",
+    description:
+      "BF Intro Moments 1–3 for the 7-day Intro Pass (product 486). Listmonk TX templates 14 / 15 / 16. Offsets are days since activation — edit the row’s delay days in the UI if you want day 4 instead of 3, or last day instead of 6.",
+    expanded: true,
+  },
+  {
     name: "LEAD FUNNEL",
     description: "Automations for Leads who haven't yet booked or taken a class",
     expanded: true,
@@ -63,12 +69,16 @@ export type LaneStep = {
  * Birthday steps and classpass-two-in-two-weeks are still unconfirmed by Thiago.
  */
 export const LANE_STEPS: LaneStep[] = [
+  { key: "bf-intro-moment-1", funnel: "Black Friday automation", timingLabel: "Day 0" },
+  { key: "bf-intro-moment-2", funnel: "Black Friday automation", timingLabel: "Day 3" },
+  { key: "bf-intro-moment-3", funnel: "Black Friday automation", timingLabel: "Day 6" },
+
   { key: "lead-immediate", funnel: "LEAD FUNNEL", timingLabel: "Day 0" },
   { key: "lead-day-2-text", funnel: "LEAD FUNNEL", timingLabel: "+2 days" },
   { key: "lead-day-7-text", funnel: "LEAD FUNNEL", timingLabel: "+7 days" },
   { key: "lead-day-14", funnel: "LEAD FUNNEL", timingLabel: "+14 days" },
   { key: "lead-day-60", funnel: "LEAD FUNNEL", timingLabel: "+60 days" },
-  { key: "lead-day-90", funnel: "LEAD FUNNEL", timingLabel: "+90 days" },
+  { key: "lead and-day-90", funnel: "LEAD FUNNEL", timingLabel: "+90 days" },
   { key: "lead-day-120", funnel: "LEAD FUNNEL", timingLabel: "+120 days" },
   { key: "lead-day-150", funnel: "LEAD FUNNEL", timingLabel: "+150 days" },
 
@@ -178,23 +188,5 @@ export function funnelMigrationSql(): string {
         `UPDATE automations SET funnel = ${sqlString(step.funnel)}, position = ${step.position}, timing_label = ${sqlString(step.timingLabel)} WHERE key = ${sqlString(step.key)};`,
     )
     .join("\n");
-  return `-- LoyalSnap funnel lanes for the admin Automations screen.
--- Assigns funnel, position, and the timing label shown on each step.
--- Does not change the on/off flag.
-
-ALTER TABLE automations ADD COLUMN funnel TEXT;
-ALTER TABLE automations ADD COLUMN position INTEGER;
-ALTER TABLE automations ADD COLUMN timing_label TEXT;
-
-CREATE TABLE IF NOT EXISTS funnels (
-  name TEXT PRIMARY KEY,
-  position INTEGER NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  expanded INTEGER NOT NULL DEFAULT 0
-);
-
-${lanes}
-
-${updates}
-`;
+  return `-- LoyalSnap funnel lanes for the admin Automations screen.\n-- Assigns funnel, position, and the timing label shown on each step.\n-- Does not change the on/off flag.\n\nALTER TABLE automations ADD COLUMN funnel TEXT;\nALTER TABLE automations ADD COLUMN position INTEGER;\nALTER TABLE automations ADD COLUMN timing_label TEXT;\n\nCREATE TABLE IF NOT EXISTS funnels (\n  name TEXT PRIMARY KEY,\n  position INTEGER NOT NULL,\n  description TEXT NOT NULL DEFAULT '',\n  expanded INTEGER NOT NULL DEFAULT 0\n);\n\n${lanes}\n\n${updates}\n`;
 }

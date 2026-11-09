@@ -1,29 +1,12 @@
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ORIGINAL_AUDIT, SEEDED_AUDIT } from "../src/automations/coverage-seed";
 import { SEED_AUTOMATIONS } from "../src/automations/seed";
 import { coverageCounts, renderCoverage } from "../src/coverage/doc";
 import { DYNAMIC_LISTS, LANES, STATIC_LISTS } from "../src/segments/catalog";
 
-/** Rebuild COVERAGE.md from MCP-sized staging chunks when all parts are present. */
-function assembleCoverageFromStaging(): boolean {
-  const dir = ".bf-staging";
-  try {
-    const parts = readdirSync(dir)
-      .filter((name) => /^coverage\.part\d+\.md$/.test(name))
-      .sort();
-    if (parts.length < 10) return false;
-    writeFileSync("COVERAGE.md", parts.map((name) => readFileSync(join(dir, name), "utf8")).join(""));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 describe("coverage audit", () => {
   it("accounts for 75 automations, 19 lanes, and the client lists", () => {
-    const assembled = assembleCoverageFromStaging();
     expect(ORIGINAL_AUDIT).toHaveLength(13);
     expect(SEEDED_AUDIT).toHaveLength(62);
     expect(new Set([...ORIGINAL_AUDIT, ...SEEDED_AUDIT].map((row) => row.key)).size).toBe(75);
@@ -37,14 +20,6 @@ describe("coverage audit", () => {
     expect(counts.lanesCovered + counts.lanesGap).toBe(19);
     expect(counts.dynamicCovered + counts.dynamicGap).toBe(13);
     expect(counts.staticCovered + counts.staticGap).toBe(STATIC_LISTS.length);
-    const rendered = renderCoverage();
-    expect(rendered).toContain("bf-intro-moment-1");
-    expect(rendered).toContain("bf-intro-moment-2");
-    expect(rendered).toContain("bf-intro-moment-3");
-    expect(rendered).toContain("Automations (75)");
-    const committed = readFileSync("COVERAGE.md", "utf8");
-    if (assembled || committed.includes("bf-intro-moment-1")) {
-      expect(committed).toBe(rendered);
-    }
+    expect(readFileSync("COVERAGE.md", "utf8")).toBe(renderCoverage());
   });
 });

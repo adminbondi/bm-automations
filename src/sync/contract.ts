@@ -37,7 +37,7 @@ Phones are E.164. \`phone\` \`+61412345678\` is the client mobile from Mindbody 
 
 ## This worker
 
-While \`CONTACT_WRITE_MODE\` is \`shared_sync\` (the default), this worker looks up the subscriber by email and sends the message. If listmonk has no row, it logs \`send_skipped\` with reason \`subscriber_missing\` and records \`skipped_no_subscriber\`. It does not create or update subscribers, and it does not call Chatwoot.
+While \`CONTACT_WRITE_MODE\` is \`shared_sync\` (the default), this worker looks up the subscriber by email and sends the message. Mindbody sale webhooks often reach this worker a few seconds before the shared sync finishes the Listmonk upsert, so the lookup retries briefly (about 4.5s total) before giving up. If listmonk still has no row, it logs \`send_skipped\` with reason \`subscriber_missing\`, records \`skipped_no_subscriber\` (that row does not burn the send dedupe — only \`status=sent\` does), and enqueues a same-day pending job so the morning cron can finish the send after sync catches up. It does not create or update subscribers, and it does not call Chatwoot. Ops can also \`POST /admin/replay-skipped\` with Bearer \`REPLAY_TOKEN\` for a client that already has a \`subscriber_missing\` skip once the subscriber exists.
 
 \`CONTACT_WRITE_MODE=self\` is for dev and test. A write runs only when \`DEV_MODE\` is true and the address is on \`SEND_ALLOWLIST\`.
 

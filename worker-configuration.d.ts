@@ -31,6 +31,10 @@ interface __BaseEnv_Env {
 	SETTINGS_ENCRYPTION_KEY: string;
 	TWILIO_ACCOUNT_SID: string;
 	TWILIO_AUTH_TOKEN: string;
+	REPLAY_TOKEN?: string;
+	LEAD_WEBHOOK_SECRET?: string;
+	HANDOFF_SECRET?: string;
+	HOME_ORIGIN?: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

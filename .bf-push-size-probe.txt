@@ -1,1 +1,1 @@
-probe
+file:///tmp/bf-push/SEED_CONTENT_ONLY.txt

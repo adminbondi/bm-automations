@@ -83,15 +83,27 @@ PATCH settings omit a field to keep it. Send an empty string to clear it. Stored
 
 The same controls are on the signed-in pages: `/automations`, `/automations/:id` (add `#email` to open the email message box), `/log`, `/settings`.
 
-Listmonk settings: base URL, API user (shown again after save), API token (write-only). Twilio settings: account SID, auth token, sending number, sender name, and whether texts use the number or the name. Also stored: default from name, from address, and reply-to; SMS quiet hours and hold-or-skip; the Reply STOP footer. Mindbody keys stay Worker secrets. List ids stay vars (`LISTMONK_LIST_ID`, `LISTMONK_SUPPRESSED_LIST_ID`). If a setting row is missing, the matching env value is the fallback. From name defaults to Balance Moves, from address to hello@balancemoves.com.au, and reply-to to bondi@balancemoves.com.au until a row is saved. Email subjects for templates 5–13 are displayed from the worker, not fetched from listmonk.
+Listmonk settings: base URL, API user (shown again after save), API token (write-only). Twilio settings: account SID, auth token, sending number, sender name, and whether texts use the number or the name. Also stored: default from name, from address, and reply-to; SMS quiet hours and hold-or-skip; the Reply STOP footer. Mindbody keys stay Worker secrets. List ids stay vars (`LISTMONK_LIST_ID`, `LISTMONK_SUPPRESSED_LIST_ID`). If a setting row is missing, the matching env value is the fallback. From name defaults to Balance Moves, from address to hello@balancemoves.com.au, and reply-to to bondi@balancemoves.com.au until a row is saved. Email subjects for templates 5–16 are displayed from the worker, not fetched from listmonk.
+
+## Black Friday automation (Intro Moments)
+
+Lane **Black Friday automation** on `/automations` (first funnel). 7-day Intro Pass only. Default **off**. Templates confirmed:
+
+| Step | Key | Template | Timing (days since activation) |
+| --- | --- | --- | --- |
+| Moment 1 — Start | `bf-intro-moment-1` | **14** | Day 0 (`clientSale.created`, immediate) |
+| Moment 2 — Midway | `bf-intro-moment-2` | **15** | Day **3** (`delay_days` from sale; morning cron) |
+| Moment 3 — Early Bird Access | `bf-intro-moment-3` | **16** | Day **6** (`delay_days` from sale; morning cron) |
+
+Edit `timing_offset_days` on Moment 2/3 in the UI if you want day 4 or last-day instead. Do not enable these while LoyalSnap still sends the same Moment. Keep `trial-purchased` (template 7) off when Moment 1 is on.
 
 ## Seeded rows
 
-Emails use listmonk templates 5–13. SMS rows store message text and a null template id. Wording is the LoyalSnap copy captured 11 Oct 2026 (texts 561548, 561561, 561552, 561559). Those texts were WhatsApp. These rows send SMS.
+Emails use listmonk templates 5–13 (LoyalSnap twins) plus 14–16 (Black Friday Moments). SMS rows store message text and a null template id. Wording is the LoyalSnap copy captured 11 Oct 2026 (texts 561548, 561561, 561552, 561559). Those texts were WhatsApp. These rows send SMS.
 
 1. Lead, immediate, template 5. Skips when the client already has a service or contract.
 2. Lead, day 60, template 6. Skips a signed-in visit, any purchase, or suppression.
-3. Intro pass purchased, template 7.
+3. Intro pass purchased, template 7 (LoyalSnap twin — prefer Black Friday Moment 1 / template 14 for BF).
 4. Third signed-in intro visit, template 8. Skips a membership once `membershipContractNames` is filled in.
 5. Intro expiry minus 3 days, at least one intro visit, template 9 (`visits` in template data).
 6. Intro expiry minus 1 day, exactly one intro visit, template 10. Skips a membership once the names are set.

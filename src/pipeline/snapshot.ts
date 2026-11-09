@@ -68,22 +68,36 @@ export async function loadClientSnapshot(input: {
     missing.push(kind);
   }
   if (missing.length === 0) return snapshot;
-  if (input.deps.snapshotClient) {
-    const fetched = await input.deps.snapshotClient(input.host.config, input.clientId);
-    for (const kind of missing) {
-      snapshot = applySlice(snapshot, kind, sliceOf(fetched, kind));
-      await remember(input.host, input.clientId, kind, sliceOf(fetched, kind));
+  try {
+    if (input.deps.snapshotClient) {
+      const fetched = await input.deps.snapshotClient(input.host.config, input.clientId);
+      for (const kind of missing) {
+        snapshot = applySlice(snapshot, kind, sliceOf(fetched, kind));
+        await remember(input.host, input.clientId, kind, sliceOf(fetched, kind));
+      }
+      return snapshot;
     }
+    const api = await openMindbody(input.host, input.deps);
+    for (const kind of missing) {
+      const slice = await fetchKind(api, input.clientId, kind);
+      snapshot = applySlice(snapshot, kind, slice);
+      await remember(input.host, input.clientId, kind, slice);
+    }
+    await storeToken(input.host, api);
+    return snapshot;
+  } catch (error) {
+    // Keep webhook ingest alive when staff token / Mindbody GETs fail (e.g.
+    // mindbody_token_403). Payload + clients_seen are enough to record the event
+    // and plan; sends skip if email/profile facts are still missing.
+    log({
+      event: "mindbody_snapshot_failed",
+      clientId: input.clientId,
+      messageId: input.event?.messageId ?? null,
+      resources: missing,
+      message: error instanceof Error ? error.message : "upstream_failed",
+    });
     return snapshot;
   }
-  const api = await openMindbody(input.host, input.deps);
-  for (const kind of missing) {
-    const slice = await fetchKind(api, input.clientId, kind);
-    snapshot = applySlice(snapshot, kind, slice);
-    await remember(input.host, input.clientId, kind, slice);
-  }
-  await storeToken(input.host, api);
-  return snapshot;
 }
 
 /** One GET /client/clients per 200 ids. Fresh cache and the monthly cap skip the call. */

@@ -71,12 +71,19 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
   }
   try {
     const automations = await loaded.repo.listAutomations();
+    // Sale (and most non-client.*) payloads omit email/phone. Cron already passes
+    // clients_seen into resourcesToFetch; webhooks must do the same or an enabled
+    // email Moment forces a staff-token profile GET. When that token 403s, the
+    // whole webhook 500s and never recordMessage — which is how clientSale.created
+    // stopped landing after bf-intro-moment-1 was turned on (2026-11-09).
+    const known = await loaded.repo.getClient(event.clientId);
     const snapshot = await loadClientSnapshot({
       host: loaded,
       deps,
       clientId: event.clientId,
       event,
       automations,
+      known: known ?? undefined,
     });
     const client = await rememberClient(loaded.repo, event.clientId, snapshot, event, loaded.now, !readOnly);
     const dryRun = readOnly || loaded.config.dryRun;

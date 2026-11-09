@@ -188,5 +188,23 @@ export function funnelMigrationSql(): string {
         `UPDATE automations SET funnel = ${sqlString(step.funnel)}, position = ${step.position}, timing_label = ${sqlString(step.timingLabel)} WHERE key = ${sqlString(step.key)};`,
     )
     .join("\n");
-  return `-- LoyalSnap funnel lanes for the admin Automations screen.\n-- Assigns funnel, position, and the timing label shown on each step.\n-- Does not change the on/off flag.\n\nALTER TABLE automations ADD COLUMN funnel TEXT;\nALTER TABLE automations ADD COLUMN position INTEGER;\nALTER TABLE automations ADD COLUMN timing_label TEXT;\n\nCREATE TABLE IF NOT EXISTS funnels (\n  name TEXT PRIMARY KEY,\n  position INTEGER NOT NULL,\n  description TEXT NOT NULL DEFAULT '',\n  expanded INTEGER NOT NULL DEFAULT 0\n);\n\n${lanes}\n\n${updates}\n`;
+  return `-- LoyalSnap funnel lanes for the admin Automations screen.
+-- Assigns funnel, position, and the timing label shown on each step.
+-- Does not change the on/off flag.
+
+ALTER TABLE automations ADD COLUMN funnel TEXT;
+ALTER TABLE automations ADD COLUMN position INTEGER;
+ALTER TABLE automations ADD COLUMN timing_label TEXT;
+
+CREATE TABLE IF NOT EXISTS funnels (
+  name TEXT PRIMARY KEY,
+  position INTEGER NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  expanded INTEGER NOT NULL DEFAULT 0
+);
+
+${lanes}
+
+${updates}
+`;
 }

@@ -1,3 +1,4 @@
+import { classifyUpstreamError, postAutomationAlert } from "../alerts";
 import { isSydneySendHour, sydneyDate } from "../time";
 import { log } from "../log";
 import { resourcesToFetch } from "../mindbody/budget";
@@ -77,15 +78,28 @@ export async function runScheduled(env: Env, deps: AppDeps): Promise<{ ran: bool
         jobId: item.job.id,
         payload: item.job.payload,
         appendReplyStop: loaded.connections.appendReplyStop,
+        alerts: loaded.alerts,
       });
       processed += 1;
     } catch (error) {
+      const message = error instanceof Error ? error.message : "upstream_failed";
       log({
         event: "cron_client_failed",
         jobId: item.job.id,
         clientId: item.job.clientId,
-        message: error instanceof Error ? error.message : "upstream_failed",
+        message,
       });
+      const classified = classifyUpstreamError(message);
+      if (classified.event === "mindbody_token" || classified.event === "upstream_failed") {
+        await postAutomationAlert(loaded.alerts, {
+          event: classified.event === "mindbody_token" ? "mindbody_token" : "cron_failed",
+          automationKey: item.automation.key,
+          automationId: item.automation.id,
+          clientId: item.job.clientId,
+          jobId: item.job.id,
+          detail: classified.detail,
+        });
+      }
     }
   }
   log({ event: "cron_finished", processed, queued: jobs.length });

@@ -3,11 +3,13 @@ import worker from "../src/index";
 import { signBody } from "./sign";
 
 const secret = "webhook-secret";
+const ingestToken = "ingest-secret";
 const env = {
   WORKER_NAME: "bm-alerts-preview",
   SLACK_CHANNEL_ID: "C0CABUPL2BW",
   SLACK_BOT_TOKEN: "xoxb-test",
   GITHUB_WEBHOOK_SECRET: secret,
+  ALERTS_INGEST_TOKEN: ingestToken,
 } as Env;
 
 async function webhook(body: unknown, event: string, signature: string | null): Promise<Response> {
@@ -114,6 +116,44 @@ describe("http handler", () => {
     const raw = JSON.stringify(failure);
     const response = await webhook(failure, "workflow_run", await signBody(raw, secret));
     expect(response.status).toBe(502);
+  });
+
+  it("posts an app ingest alert and rejects bad auth", async () => {
+    const posted: { channel?: string; text?: string }[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      posted.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    const body = {
+      source: "bm-automations-dev",
+      event: "subscriber_missing",
+      automationKey: "bf-intro-moment-1",
+      clientId: "100025122",
+      channel: "email",
+      detail: "after_retries",
+    };
+    const unauthorized = await worker.fetch(
+      new Request("https://bm-alerts-preview.example.workers.dev/alerts", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer wrong" },
+        body: JSON.stringify(body),
+      }),
+      env,
+    );
+    expect(unauthorized.status).toBe(401);
+
+    const ok = await worker.fetch(
+      new Request("https://bm-alerts-preview.example.workers.dev/alerts", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${ingestToken}` },
+        body: JSON.stringify(body),
+      }),
+      env,
+    );
+    expect(ok.status).toBe(200);
+    expect(posted).toHaveLength(1);
+    expect(posted[0]?.text).toContain("subscriber_missing");
+    expect(posted[0]?.text).toContain("100025122");
   });
 });
 

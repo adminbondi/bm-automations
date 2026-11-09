@@ -35,6 +35,9 @@ interface __BaseEnv_Env {
 	LEAD_WEBHOOK_SECRET?: string;
 	HANDOFF_SECRET?: string;
 	HOME_ORIGIN?: string;
+	BM_ALERTS_URL?: string;
+	BM_ALERTS_TOKEN?: string;
+	BM_ALERTS_SOURCE?: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

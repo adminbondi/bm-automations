@@ -3,6 +3,8 @@
 
 SLACK_BOT_TOKEN=
 GITHUB_WEBHOOK_SECRET=
+# Optional. Bearer token for POST /alerts from bm-automations.
+ALERTS_INGEST_TOKEN=
 
 # Optional. A read token (Workers Builds Configuration: Read) fills the
 # error line on a failed Workers Builds alert. Leave empty to skip log lookup.

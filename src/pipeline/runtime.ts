@@ -1,3 +1,4 @@
+import { alertsConfigFromEnv, type AlertsConfig } from "../alerts";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
 import { isQuietHours, sydneyDate, sydneyDateFromInstant } from "../time";
@@ -23,6 +24,7 @@ export type Loaded = {
   twilio: TwilioClient;
   withinQuietHours: boolean;
   now: Date;
+  alerts: AlertsConfig | null;
 };
 
 export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
@@ -59,6 +61,7 @@ export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
     twilio,
     withinQuietHours: isQuietHours(now, connections.quietStart, connections.quietEnd),
     now,
+    alerts: alertsConfigFromEnv(env, deps.fetchImpl),
   };
 }
 

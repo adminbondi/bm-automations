@@ -22,7 +22,7 @@ export const BUILD_EVENTS = "build.failed,build.canceled";
 export const WORKFLOW_SOURCE = "workflows.workflow";
 export const WORKFLOW_EVENTS = "instance.errored";
 export const RETENTION_SECS = 86400;
-const WORKER_SECRETS = ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET"];
+const WORKER_SECRETS = ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET", "ALERTS_INGEST_TOKEN"];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");

@@ -1,3 +1,4 @@
+import { classifyUpstreamError, postAutomationAlert } from "../alerts";
 import { timingSafeEqualString } from "../crypto-equal";
 import { verifyMindbodySignature } from "../signature";
 import { parseMindbodyEvent } from "../mindbody/events";
@@ -115,12 +116,23 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
         emailAllowlist: loaded.config.emailAllowlist,
         payload: eventPayload(event),
         appendReplyStop: loaded.connections.appendReplyStop,
+        alerts: loaded.alerts,
       });
       await loaded.repo.recordMessage(event.messageId, event.eventId);
     }
     return { status: 200, body: { ok: true, dryRun, plans: plans.map(publicPlan) } };
   } catch (error) {
-    log({ event: "webhook_failed", message: error instanceof Error ? error.message : "upstream_failed", messageId: event.messageId });
+    const message = error instanceof Error ? error.message : "upstream_failed";
+    log({ event: "webhook_failed", message, messageId: event.messageId });
+    const classified = classifyUpstreamError(message);
+    // send_error / listmonk / twilio already alerted inside apply; avoid duplicates.
+    if (classified.event === "mindbody_token" || classified.event === "upstream_failed") {
+      await postAutomationAlert(loaded.alerts, {
+        event: classified.event === "mindbody_token" ? "mindbody_token" : "webhook_failed",
+        clientId: event.clientId ?? undefined,
+        detail: classified.detail,
+      });
+    }
     return { status: 500, body: { error: "upstream_failed" } };
   }
 }

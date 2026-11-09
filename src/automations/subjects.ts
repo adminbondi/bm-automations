@@ -9,6 +9,10 @@ export const TEMPLATE_SUBJECTS: Record<number, string> = {
   11: "Thanks for starting your membership!",
   12: "{{ .Subscriber.FirstName }}, Share The Love!",
   13: "Welcome to Balance Moves - WAIVER SIGNATURE & What to expect",
+  /** Black Friday Intro Moments (7-day Intro Pass). Confirmed Listmonk TX ids. */
+  14: "BF Intro holder - Moment 1 - Start",
+  15: "BF Intro holder - Moment 2 - Midway",
+  16: "BF Intro holder - Moment 3 - Early Bird Access",
 };
 
 export function templateLabel(templateId: number | null): string {

@@ -78,7 +78,7 @@ export const LANE_STEPS: LaneStep[] = [
   { key: "lead-day-7-text", funnel: "LEAD FUNNEL", timingLabel: "+7 days" },
   { key: "lead-day-14", funnel: "LEAD FUNNEL", timingLabel: "+14 days" },
   { key: "lead-day-60", funnel: "LEAD FUNNEL", timingLabel: "+60 days" },
-  { key: "lead and-day-90", funnel: "LEAD FUNNEL", timingLabel: "+90 days" },
+  { key: "lead-day-90", funnel: "LEAD FUNNEL", timingLabel: "+90 days" },
   { key: "lead-day-120", funnel: "LEAD FUNNEL", timingLabel: "+120 days" },
   { key: "lead-day-150", funnel: "LEAD FUNNEL", timingLabel: "+150 days" },
 

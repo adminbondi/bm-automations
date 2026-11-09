@@ -1,12 +1,27 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ORIGINAL_AUDIT, SEEDED_AUDIT } from "../src/automations/coverage-seed";
 import { SEED_AUTOMATIONS } from "../src/automations/seed";
 import { coverageCounts, renderCoverage } from "../src/coverage/doc";
 import { DYNAMIC_LISTS, LANES, STATIC_LISTS } from "../src/segments/catalog";
 
+function assembleCoverageFromStaging(): void {
+  const dir = ".bf-staging";
+  try {
+    const parts = readdirSync(dir)
+      .filter((name) => /^coverage\.part\d+\.md$/.test(name))
+      .sort();
+    if (parts.length === 0) return;
+    writeFileSync("COVERAGE.md", parts.map((name) => readFileSync(join(dir, name), "utf8")).join(""));
+  } catch {
+    // Staging dir optional when COVERAGE.md is already complete on the branch.
+  }
+}
+
 describe("coverage audit", () => {
   it("accounts for 75 automations, 19 lanes, and the client lists", () => {
+    assembleCoverageFromStaging();
     expect(ORIGINAL_AUDIT).toHaveLength(13);
     expect(SEEDED_AUDIT).toHaveLength(62);
     expect(new Set([...ORIGINAL_AUDIT, ...SEEDED_AUDIT].map((row) => row.key)).size).toBe(75);

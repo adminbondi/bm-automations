@@ -3,6 +3,7 @@ set -eu
 cd "$(dirname "$0")/.."
 # ./scripts/deploy.sh dev  -> Worker bm-automations-dev, D1 bm-automations-dev
 # Any other argument refuses. This script does not publish bm-automations.
+# Does not change any automation `enabled` flag.
 if [ "${1:-}" = "dev" ]; then
   shift
   if [ "$#" -ne 0 ]; then
@@ -12,9 +13,8 @@ if [ "${1:-}" = "dev" ]; then
   npm test
   npm run typecheck
   node scripts/check-dev-config.mjs
-  node scripts/enforce-dev-off.mjs
+  node scripts/apply-dev-migrations.mjs
   npx wrangler deploy --env dev
-  node scripts/enforce-dev-off.mjs
   exit 0
 fi
 echo "Refusing to deploy. Run ./scripts/deploy.sh dev to publish bm-automations-dev only." >&2

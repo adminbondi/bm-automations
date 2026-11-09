@@ -104,6 +104,15 @@ async function applyPlan(plan: GatedPlan, options: ApplyOptions): Promise<void> 
   if ((plan.listmonkCall || plan.twilioCall) && plan.dedupeKey) {
     const result = plan.twilioCall ? await deliverSms(plan, options, plan.dedupeKey) : await deliverEmail(plan, options, plan.dedupeKey);
     if (options.jobId) {
+      if (result === "deferred") {
+        await options.repo.updateJob(options.jobId, {
+          status: "pending",
+          reason: "subscriber_missing",
+          payload: options.payload ?? {},
+          dueOn: options.todaySydney,
+        });
+        return;
+      }
       const repeat = result === "sent" && plan.automation.skipRules.repeat === "yearly" && plan.decision.dueOn;
       await options.repo.updateJob(options.jobId, {
         status: repeat ? "pending" : result === "sent" || result === "blocked" ? (result === "sent" ? "sent" : "skipped") : "pending",
@@ -144,7 +153,10 @@ function keepsJob(plan: GatedPlan): boolean {
   return plan.automation.timingKind !== "immediate" || plan.automation.skipRules.exactVisits != null;
 }
 
-type Delivery = "sent" | "blocked";
+type Delivery = "sent" | "blocked" | "deferred";
+
+/** Sync dual-write often finishes 1–5s after the sale webhook hits automations. */
+const SHARED_SYNC_SUBSCRIBER_RETRY_MS = [0, 1500, 3000] as const;
 
 async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string): Promise<Delivery> {
   const email = plan.email;
@@ -173,7 +185,7 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
       name,
       ...(plan.copy ? {} : { attribs: plan.attribs }),
     })
-    : await options.listmonk.findSubscriber(email);
+    : await findSubscriberWithRetry(options.listmonk, email);
   if (!subscriber) {
     log({
       event: "send_skipped",
@@ -194,6 +206,21 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
       status: "skipped_no_subscriber",
       detail: "subscriber_missing",
     });
+    // Keep a same-day job so morning cron can finish the send after sync catches up.
+    // hasSent only counts status=sent, so the skipped row does not block the retry.
+    if (!plan.copy && options.contactWriteMode === "shared_sync") {
+      if (options.jobId) {
+        return "deferred";
+      }
+      await options.repo.enqueueJob({
+        automationId: plan.automation.id,
+        clientId: options.clientId,
+        templateId: plan.templateId,
+        dueOn: options.todaySydney,
+        payload: options.payload ?? {},
+        reason: "subscriber_missing",
+      });
+    }
     return "blocked";
   }
   if (options.listmonk.isSuppressed(subscriber)) {
@@ -257,4 +284,26 @@ async function deliverSms(plan: GatedPlan, options: ApplyOptions, key: string): 
   });
   log({ event: "sent", channel: "sms", automationId: plan.automation.id, automationKey: plan.automation.key });
   return "sent";
+}
+
+async function findSubscriberWithRetry(
+  listmonk: ListmonkClient,
+  email: string,
+): Promise<Awaited<ReturnType<ListmonkClient["findSubscriber"]>>> {
+  for (let i = 0; i < SHARED_SYNC_SUBSCRIBER_RETRY_MS.length; i++) {
+    const waitMs = SHARED_SYNC_SUBSCRIBER_RETRY_MS[i] ?? 0;
+    if (waitMs > 0) await sleep(waitMs);
+    const subscriber = await listmonk.findSubscriber(email);
+    if (subscriber) {
+      if (i > 0) {
+        log({ event: "subscriber_retry_ok", attempt: i + 1, email });
+      }
+      return subscriber;
+    }
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

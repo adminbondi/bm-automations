@@ -4,6 +4,7 @@ import { log } from "../log";
 import { normalizePhone } from "@balancemoves/contacts-core";
 import { loadRuntime, type AppDeps } from "../pipeline/runtime";
 import { handleLeadWebhook, handleWebhook, previewBody, publicPlan } from "../pipeline/webhook";
+import { handleReplaySkipped } from "../pipeline/replay";
 import { runScheduled } from "../pipeline/cron";
 import type { RuntimeConfig } from "../env";
 import { bindingsFromEnv, runtimeConfig } from "../env";
@@ -47,6 +48,12 @@ async function route(request: Request, env: Env, deps: AppDeps): Promise<Respons
   }
   if (url.pathname === "/webhooks/lead" && request.method === "POST") {
     const result = await handleLeadWebhook(request, env, deps);
+    return Response.json(result.body, { status: result.status });
+  }
+  if (url.pathname === "/admin/replay-skipped" && request.method === "POST") {
+    // Bearer REPLAY_TOKEN (optional secret). Outside session auth so ops can
+    // finish a subscriber_missing race after sync dual-write without Google login.
+    const result = await handleReplaySkipped(request, env, deps);
     return Response.json(result.body, { status: result.status });
   }
   const config = runtimeConfig(bindingsFromEnv(env));

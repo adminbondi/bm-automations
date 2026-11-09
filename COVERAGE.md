@@ -1,12 +1,12 @@
 # LoyalSnap coverage
 
-Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 19 dashboard lanes, dynamic client lists, and the static client-list titles). 72 automations are rows in D1, including the red-flag credits rule. Rows that were off are seeded with enabled = false.
+Captured 11 Oct 2026 from the LoyalSnap inventory (9 funnels, 19 dashboard lanes, dynamic client lists, and the static client-list titles). 75 automations are rows in D1, including the red-flag credits rule. Rows that were off are seeded with enabled = false.
 
 ## Summary
 
 | Set | Covered | Gap |
 | --- | ---: | ---: |
-| Automations (72) | 72 | 0 |
+| Automations (75) | 75 | 0 |
 | Dashboard lanes (19) | 19 | 0 |
 | Dynamic client lists (13) | 13 | 0 |
 | Static client lists (244) | 0 | 244 |
@@ -23,6 +23,9 @@ Emails that have no listmonk template id stay with template_id null. Turning one
 | Birthday | Birthday (text) | off | morning cron | client has a birth date | on the birthday | once per calendar year | covered — D1 birthday-day-text. timing birthday_day. |
 | Birthday | Birthday month (email) | off | morning cron | client has a birth date | first day of the birthday month | once per calendar year | covered — D1 birthday-month-email. birthday_month_start. Template was missing in LoyalSnap too. |
 | Birthday | Birthday month (text) | off | morning cron, after any client event schedules the job | client has a birth date | 1st of the birthday month | once per calendar year, then the job moves to next year | covered — D1 birthday-month-text. timing birthday_month_start, dedupeScope calendar_year, repeat yearly. |
+| Black Friday | Moment 1 — Start | off | clientSale.created | intro pass name tokens (7-day / intro pass) | immediately (day 0 since activation) | one send per client | covered — D1 bf-intro-moment-1, template 14. Day 0 on Intro Pass sale. |
+| Black Friday | Moment 2 — Midway | off | clientSale.created, then morning cron | intro pass name tokens | 3 days after activation (editable) | one send per client | covered — D1 bf-intro-moment-2, template 15. delay_days 3 from Intro Pass sale. |
+| Black Friday | Moment 3 — Early Bird Access | off | clientSale.created, then morning cron | intro pass name tokens | 6 days after activation (editable) | one send per client | covered — D1 bf-intro-moment-3, template 16. delay_days 6 from Intro Pass sale. |
 | Class packs | Class pack expiring in 3 days | off | package purchase, then the morning cron | class pack, at least 1 visit | 3 days before expiry | skip below 1 visit | covered — D1 pack-expiring-3-days. days_before_expiry 3, minVisits 1. Package names unset. |
 | Class packs | Class pack welcome | off | clientSale.created | one of 6 packages (names were not in the export) | immediately | one send | covered — D1 pack-welcome. Empty package list fails closed. |
 | Class packs | Pack empty (text) | off | class sign-in | 0 visits remaining | immediately | one send | covered — D1 pack-none-remaining-text. exactRemaining 0. |

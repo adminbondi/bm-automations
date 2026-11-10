@@ -18,8 +18,33 @@ Plain text, one message per failure.
 1. **GitHub Actions.** `POST /webhooks/github` accepts `workflow_run` events whose action is `completed` and whose conclusion is `failure`, `cancelled`, or `timed_out`. The body is checked against `X-Hub-Signature-256` (HMAC SHA-256 of the raw body). The message names the repo, workflow, branch, commit message, who triggered the run, and the run link.
 2. **Workers Builds.** The queue consumer handles `build.failed` and `build.canceled` only. The message names the worker, branch, commit, author, and error, plus a dashboard link. Started and succeeded builds are acked and not posted.
 3. **Workflow instances.** The same consumer handles `instance.errored` only. Completed, queued, and started instances are ignored.
+4. **App ingest.** `POST /alerts` accepts a short JSON body from other Workers (bm-automations). Auth is `Authorization: Bearer <ALERTS_INGEST_TOKEN>`. When the token secret is unset, the route returns 503.
 
 `GET /` answers `{worker name} is up. It posts failures only.` It does not call Slack.
+
+### App ingest contract
+
+```http
+POST /alerts
+Authorization: Bearer <ALERTS_INGEST_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "source": "bm-automations-dev",
+  "event": "subscriber_missing",
+  "automationKey": "bf-intro-moment-1",
+  "automationId": 14,
+  "clientId": "100025122",
+  "channel": "email",
+  "detail": "after_retries",
+  "jobId": 42,
+  "reason": "optional"
+}
+```
+
+Required: `source`, `event` (short strings). Optional ids/flags only — no email, phone, names, or webhook bodies. Fields are clipped to one short line. Response: `200 ok`, `401` bad token, `400` bad body, `413` too large, `502` Slack failed, `503` ingest secret unset.
 
 ## Secrets
 
@@ -29,11 +54,13 @@ Worker secrets (never commit the values):
 | --- | --- |
 | `SLACK_BOT_TOKEN` | Bot `bm-forms-notify`. Needs `chat:write`, and the bot must be in `#bm-alerts`. |
 | `GITHUB_WEBHOOK_SECRET` | Shared HMAC secret for the GitHub webhook. |
+| `ALERTS_INGEST_TOKEN` | Optional. Bearer token for `POST /alerts`. Unset disables app ingest. |
 
 ```bash
 cd alerts
 printf '%s' "$SLACK_BOT_TOKEN" | npx wrangler secret put SLACK_BOT_TOKEN --env preview
 printf '%s' "$GITHUB_WEBHOOK_SECRET" | npx wrangler secret put GITHUB_WEBHOOK_SECRET --env preview
+printf '%s' "$ALERTS_INGEST_TOKEN" | npx wrangler secret put ALERTS_INGEST_TOKEN --env preview
 ```
 
 `scripts/deploy-preview.mjs` sets those two when the same names are present in the environment, and skips them when they are absent. It does not print the values. Wrangler will not create a Worker that lists `secrets.required` until every name has a value. If this is the first deploy and those values are not in the environment, the script creates the Worker with a random stand-in for each missing name, deletes the temp file, and does not record the stand-in. Replace the stand-in with `wrangler secret put` before expecting a real alert. Later deploys keep the secrets already on the Worker.

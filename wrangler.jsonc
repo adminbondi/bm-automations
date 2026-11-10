@@ -49,7 +49,9 @@
     "STUDIO_NAME": "Balance Moves",
     "CONTACT_WRITE_MODE": "shared_sync",
     "TWILIO_FROM_NUMBER": "",
-    "TWILIO_SENDER_NAME": ""
+    "TWILIO_SENDER_NAME": "",
+    "BM_ALERTS_SOURCE": "bm-automations",
+    "BM_ALERTS_URL": ""
   },
   "secrets": {
     "required": [
@@ -102,7 +104,9 @@
         "STUDIO_NAME": "Balance Moves",
         "CONTACT_WRITE_MODE": "shared_sync",
         "TWILIO_FROM_NUMBER": "",
-        "TWILIO_SENDER_NAME": ""
+        "TWILIO_SENDER_NAME": "",
+        "BM_ALERTS_SOURCE": "bm-automations-dev",
+        "BM_ALERTS_URL": "https://bm-alerts-preview.plain-bush-daad.workers.dev"
       },
       "secrets": {
         "required": [

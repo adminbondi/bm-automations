@@ -5,6 +5,8 @@ interface __BaseEnv_Env {
 	SLACK_CHANNEL_ID: "C0CABUPL2BW";
 	SLACK_BOT_TOKEN: string;
 	GITHUB_WEBHOOK_SECRET: string;
+	/** Bearer token for POST /alerts. Unset disables ingest (503). */
+	ALERTS_INGEST_TOKEN?: string;
 }
 declare namespace Cloudflare {
 	interface GlobalProps {

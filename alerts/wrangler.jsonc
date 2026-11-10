@@ -26,6 +26,7 @@
     "SLACK_CHANNEL_ID": "C0CABUPL2BW"
   },
   "secrets": {
+    // ALERTS_INGEST_TOKEN is optional: unset disables POST /alerts (503).
     "required": ["SLACK_BOT_TOKEN", "GITHUB_WEBHOOK_SECRET"]
   },
   "queues": {

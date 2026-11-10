@@ -45,10 +45,23 @@ describe("contact write mode", () => {
   });
 
   it("skips a missing subscriber and does not create one", async () => {
-    const { response, calls, lines, repo } = await sendSale({ subscriber: false });
+    const { response, calls, lines, repo } = await sendSale({
+      subscriber: false,
+      extra: {
+        BM_ALERTS_URL: "https://bm-alerts.example",
+        BM_ALERTS_TOKEN: "ingest",
+        BM_ALERTS_SOURCE: "bm-automations-test",
+      },
+    });
     expect(response.status).toBe(200);
     expect(calls.some((call) => call.url.includes("/api/tx"))).toBe(false);
-    expect(calls.some((call) => call.method === "POST" || call.method === "PUT")).toBe(false);
+    expect(
+      calls.some(
+        (call) =>
+          (call.method === "POST" || call.method === "PUT") &&
+          !call.url.includes("bm-alerts.example"),
+      ),
+    ).toBe(false);
     expect(lines.some((line) => line.includes("\"reason\":\"subscriber_missing\""))).toBe(true);
     const lookups = calls.filter((call) => call.url.includes("/api/subscribers") && call.method === "GET");
     expect(lookups.length).toBeGreaterThanOrEqual(3);
@@ -56,6 +69,14 @@ describe("contact write mode", () => {
     expect(log[0]).toMatchObject({ status: "skipped_no_subscriber", detail: "subscriber_missing" });
     const jobs = await repo.dueJobs("2026-10-11");
     expect(jobs.some((job) => job.automationId === 3 && job.clientId === "100" && job.reason === "subscriber_missing")).toBe(true);
+    const alert = calls.find((call) => call.url === "https://bm-alerts.example/alerts");
+    expect(alert?.method).toBe("POST");
+    expect(JSON.parse(alert?.body ?? "{}")).toMatchObject({
+      source: "bm-automations-test",
+      event: "subscriber_missing",
+      clientId: "100",
+      detail: "after_retries",
+    });
   });
 
   it("retries shared_sync lookup until the subscriber appears", async () => {

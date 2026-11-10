@@ -25,3 +25,7 @@ AGENT_READ_TOKEN=
 # Set the same value as bm-home only when home sign-in should take over.
 HANDOFF_SECRET=
 HOME_ORIGIN=
+# Optional. When both are set, actionable send failures POST to bm-alerts /alerts.
+BM_ALERTS_URL=
+BM_ALERTS_TOKEN=
+BM_ALERTS_SOURCE=bm-automations-local

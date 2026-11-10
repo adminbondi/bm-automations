@@ -1,3 +1,8 @@
+import {
+  classifyUpstreamError,
+  postAutomationAlert,
+  type AlertsConfig,
+} from "../alerts";
 import { delayOffsetMs, timingUnitOf } from "../automations/delay-units";
 import { unsubscribeUrl, withUnsubscribe } from "../automations/gate";
 import type { JobPayload } from "../automations/types";
@@ -26,6 +31,8 @@ export type ApplyOptions = {
   jobId?: number;
   payload?: JobPayload;
   appendReplyStop?: boolean;
+  /** When set, actionable send failures post to bm-alerts. */
+  alerts?: AlertsConfig | null;
 };
 
 export async function applyPlans(plans: GatedPlan[], options: ApplyOptions): Promise<void> {
@@ -199,13 +206,29 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
       email,
     });
   }
-  const subscriber = write
-    ? await options.listmonk.ensureSubscriber({
-      email,
-      name,
-      ...(plan.copy ? {} : { attribs: plan.attribs }),
-    })
-    : await findSubscriberWithRetry(options.listmonk, email);
+  let subscriber: Awaited<ReturnType<ListmonkClient["findSubscriber"]>>;
+  try {
+    subscriber = write
+      ? await options.listmonk.ensureSubscriber({
+        email,
+        name,
+        ...(plan.copy ? {} : { attribs: plan.attribs }),
+      })
+      : await findSubscriberWithRetry(options.listmonk, email);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "listmonk_failed";
+    const classified = classifyUpstreamError(message);
+    await postAutomationAlert(options.alerts, {
+      event: classified.event === "upstream_failed" ? "listmonk_error" : classified.event,
+      automationKey: plan.automation.key,
+      automationId: plan.automation.id,
+      clientId: options.clientId,
+      channel: "email",
+      detail: classified.detail,
+      jobId: options.jobId,
+    });
+    throw error;
+  }
   if (!subscriber) {
     log({
       event: "send_skipped",
@@ -225,6 +248,15 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
       phone: null,
       status: "skipped_no_subscriber",
       detail: "subscriber_missing",
+    });
+    await postAutomationAlert(options.alerts, {
+      event: "subscriber_missing",
+      automationKey: plan.automation.key,
+      automationId: plan.automation.id,
+      clientId: options.clientId,
+      channel: "email",
+      detail: "after_retries",
+      jobId: options.jobId,
     });
     // Keep a same-day job so morning cron can finish the send after sync catches up.
     // hasSent only counts status=sent, so the skipped row does not block the retry.
@@ -258,7 +290,12 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
     return "blocked";
   }
   const data = withUnsubscribe(plan.data, unsubscribeUrl(options.listmonkBaseUrl, subscriber.uuid));
-  await options.listmonk.sendTx({ email, templateId: plan.templateId, data });
+  try {
+    await options.listmonk.sendTx({ email, templateId: plan.templateId, data });
+  } catch (error) {
+    await recordSendFailure(plan, options, key, "email", error);
+    throw error;
+  }
   await options.repo.recordSend({
     dedupeKey: key,
     automationId: plan.automation.id,
@@ -290,7 +327,12 @@ async function deliverSms(plan: GatedPlan, options: ApplyOptions, key: string): 
     visits: [],
   }));
   const body = withReplyStop(rendered, options.appendReplyStop === true);
-  await options.twilio.sendSms({ to: phone, body });
+  try {
+    await options.twilio.sendSms({ to: phone, body });
+  } catch (error) {
+    await recordSendFailure(plan, options, key, "sms", error);
+    throw error;
+  }
   await options.repo.recordSend({
     dedupeKey: key,
     automationId: plan.automation.id,
@@ -304,6 +346,37 @@ async function deliverSms(plan: GatedPlan, options: ApplyOptions, key: string): 
   });
   log({ event: "sent", channel: "sms", automationId: plan.automation.id, automationKey: plan.automation.key });
   return "sent";
+}
+
+async function recordSendFailure(
+  plan: GatedPlan,
+  options: ApplyOptions,
+  key: string,
+  channel: "email" | "sms",
+  error: unknown,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : "send_failed";
+  const classified = classifyUpstreamError(message);
+  await options.repo.recordSend({
+    dedupeKey: key,
+    automationId: plan.automation.id,
+    clientId: options.clientId,
+    channel,
+    templateId: channel === "email" ? plan.templateId : null,
+    email: channel === "email" ? plan.email : null,
+    phone: channel === "sms" ? plan.phone : null,
+    status: "failed",
+    detail: classified.detail,
+  });
+  await postAutomationAlert(options.alerts, {
+    event: classified.event === "upstream_failed" ? "send_error" : classified.event,
+    automationKey: plan.automation.key,
+    automationId: plan.automation.id,
+    clientId: options.clientId,
+    channel,
+    detail: classified.detail,
+    jobId: options.jobId,
+  });
 }
 
 async function findSubscriberWithRetry(

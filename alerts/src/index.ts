@@ -1,10 +1,12 @@
 import { fetchBuildLogs } from "./build-logs";
 import { queueAlert, wantsBuildLogs } from "./events";
 import { githubDecision } from "./github";
+import { ingestDecision, verifyBearerToken } from "./ingest";
 import { verifyGithubSignature } from "./signature";
 import { postSlackMessage } from "./slack";
 
 const MAX_BODY_BYTES = 1_000_000;
+const MAX_INGEST_BYTES = 8_000;
 
 function text(body: string, status: number): Response {
   return new Response(body, {
@@ -27,7 +29,52 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   if (request.method === "POST" && url.pathname === "/webhooks/github") {
     return handleGithub(request, env);
   }
+  if (request.method === "POST" && url.pathname === "/alerts") {
+    return handleIngest(request, env);
+  }
   return text("not found\n", 404);
+}
+
+async function handleIngest(request: Request, env: Env): Promise<Response> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > MAX_INGEST_BYTES) return text("payload too large\n", 413);
+
+  const expected = env.ALERTS_INGEST_TOKEN?.trim() ?? "";
+  if (!expected) return text("ingest disabled\n", 503);
+
+  const authorized = await verifyBearerToken(request.headers.get("authorization"), expected);
+  if (!authorized) return text("unauthorized\n", 401);
+
+  const body = await request.arrayBuffer();
+  if (body.byteLength > MAX_INGEST_BYTES) return text("payload too large\n", 413);
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(body));
+  } catch {
+    return text("invalid json\n", 400);
+  }
+
+  const decision = ingestDecision(payload);
+  if (decision.kind === "reject") return text(`${decision.reason}\n`, decision.status);
+
+  try {
+    await postSlackMessage(env, decision.text);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Slack post failed";
+    console.error(JSON.stringify({ source: "ingest", result: "slack_error", error: message }));
+    return text("alert was not posted\n", 502);
+  }
+
+  console.log(
+    JSON.stringify({
+      source: "ingest",
+      result: "alerted",
+      from: decision.source,
+      event: decision.event,
+    }),
+  );
+  return text("ok\n", 200);
 }
 
 async function handleGithub(request: Request, env: Env): Promise<Response> {

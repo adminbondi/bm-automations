@@ -64,7 +64,7 @@ export const CONTACT_ATTRIBUTES = [
   },
   {
     attribute_key: "membership_status",
-    attribute_display_name: "membership status",
+    attribute_display_name: "Member status",
     attribute_display_type: 6,
     attribute_description: "Active, On Hold, or None.",
     attribute_values: ["Active", "On Hold", "None"],
@@ -79,7 +79,7 @@ export const CONTACT_ATTRIBUTES = [
   },
   {
     attribute_key: "packs",
-    attribute_display_name: "packs",
+    attribute_display_name: "Packs",
     attribute_display_type: 0,
     attribute_description: "Active packs: name, credits left, and expiry.",
     attribute_model: 1,
@@ -219,7 +219,7 @@ export const CONTACT_ATTRIBUTE_RENAMES = [
     from: "mindbody_membership_status",
     to: "membership_status",
     fromDisplay: "Mindbody membership status",
-    toDisplay: "membership status",
+    toDisplay: "Member status",
   },
   {
     from: "mindbody_membership_expiry",
@@ -227,7 +227,7 @@ export const CONTACT_ATTRIBUTE_RENAMES = [
     fromDisplay: "Mindbody membership expiry",
     toDisplay: "membership expiry",
   },
-  { from: "mindbody_packs", to: "packs", fromDisplay: "Mindbody packs", toDisplay: "packs" },
+  { from: "mindbody_packs", to: "packs", fromDisplay: "Mindbody packs", toDisplay: "Packs" },
   {
     from: "mindbody_pack_credits_total",
     to: "pack_credits_total",

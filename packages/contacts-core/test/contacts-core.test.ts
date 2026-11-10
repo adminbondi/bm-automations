@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CONTACT_ATTRIBUTES,
   CONTACT_FIELDS,
+  STAFF_CONTACT_ATTRIBUTES,
   ChatwootContacts,
   ListmonkClient,
   MindbodyClient,
@@ -102,6 +103,31 @@ describe("shared contact attributes", () => {
     });
     expect(attributesToCopy({ mindbody_id: "9", client_id: "kept" })).toEqual({});
     expect(attributesToCopy({ mindbody_packs: "old pack" })).toEqual({ packs: "old pack" });
+  });
+});
+
+describe("STAFF_CONTACT_ATTRIBUTES", () => {
+  it("drops the Mindbody prefix from labels, keeps Mindbody ID, and groups intro fields", () => {
+    const labels = STAFF_CONTACT_ATTRIBUTES.map((field) => field.label);
+    expect(labels).toContain("Member status");
+    expect(labels).toContain("Packs");
+    expect(labels).toContain("Intro expires");
+    expect(labels).toContain("Intro days left");
+    expect(STAFF_CONTACT_ATTRIBUTES.find((field) => field.key === "mindbody_id")?.label).toBe("Mindbody ID");
+    for (const field of STAFF_CONTACT_ATTRIBUTES) {
+      if (field.key === "mindbody_id") continue;
+      expect(field.label.startsWith("Mindbody")).toBe(false);
+      expect(field.key.startsWith("mindbody_")).toBe(false);
+      expect(field.legacyKey.startsWith("mindbody_")).toBe(true);
+    }
+    const introAt = STAFF_CONTACT_ATTRIBUTES.findIndex((field) => field.group === "intro");
+    const intro = STAFF_CONTACT_ATTRIBUTES.filter((field) => field.group === "intro");
+    expect(intro.length).toBeGreaterThan(1);
+    expect(STAFF_CONTACT_ATTRIBUTES.slice(introAt, introAt + intro.length).every((field) => field.group === "intro")).toBe(true);
+    expect(STAFF_CONTACT_ATTRIBUTES.slice(introAt + intro.length)).toEqual([]);
+    expect(STAFF_CONTACT_ATTRIBUTES.find((field) => field.label === "Intro expires")?.key).toBe("intro_expires");
+    expect(STAFF_CONTACT_ATTRIBUTES.find((field) => field.label === "Intro expires")?.legacyKey).toBe("mindbody_intro_expiry");
+    expect(STAFF_CONTACT_ATTRIBUTES.find((field) => field.label === "Member status")?.legacyKey).toBe("mindbody_membership_status");
   });
 });
 

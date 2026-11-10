@@ -72,7 +72,7 @@ These are in `env.dev.vars`. They are not secrets. `wrangler deploy` replaces pl
 
 | Name | Value in git | Purpose | Who supplies changes |
 | --- | --- | --- | --- |
-| `DEV_MODE` | `true` | Sends off the allowlist are logged and skipped. Empty also means on. The check requires the string `true`. | Locked in git |
+| `DEV_MODE` | `false` | Live Moments Worker. Empty/`true` enables allowlist skips (often with **no** `send_log` row). The allowlist check requires the string `false` so a main deploy cannot re-enable silent skips. | Locked in git |
 | `DRY_RUN` | `false` | `true` plans a send and does not call listmonk or Twilio. Allowlisted dev sends are still gated by the allowlists. | Already set |
 | `SEND_ALLOWLIST` | `bondi@balancemoves.com.au` | Only this email may be sent in dev. | Locked in git |
 | `SMS_ALLOWLIST` | empty | Test handsets. Must match `scripts/dev-sms-allowlist.txt`. Empty means no SMS. | Thiago, by editing both files together |
@@ -124,14 +124,14 @@ Google's redirect URI is `https://bm-automations-dev.plain-bush-daad.workers.dev
 
 `scripts/check-dev-config.mjs` reads `env.dev` and fails unless all of these hold:
 
-- `DEV_MODE` is `true`.
-- `SEND_ALLOWLIST` contains exactly `bondi@balancemoves.com.au` and no other email.
+- `DEV_MODE` is `false` (this Worker is live Moments; deploy overwrites plain-text vars from git).
+- `SEND_ALLOWLIST` contains exactly `bondi@balancemoves.com.au` and no other email (used only if `DEV_MODE` is temporarily turned on at runtime).
 - `DEFAULT_FROM_EMAIL` is `bondi@balancemoves.com.au`.
 - Phone numbers in `SMS_ALLOWLIST` and `SEND_ALLOWLIST` are the same set as `scripts/dev-sms-allowlist.txt`.
 - The studio number `+61424133544` is on neither list.
 - The D1 binding is `bm-automations-dev` / `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`.
 
-The file is empty on purpose. Dev SMS cannot be sent until Thiago adds each test handset to that file and to `SMS_ALLOWLIST` in the same change. Runtime gating is unchanged: with `DEV_MODE` on, a number that is not on the list is logged and skipped.
+The SMS allowlist file is empty on purpose. Dev SMS cannot be sent until Thiago adds each test handset to that file and to `SMS_ALLOWLIST` in the same change. With `DEV_MODE=false`, email allowlist gating is off for live Moments.
 
 ## Enabled flags are left alone
 

@@ -150,7 +150,12 @@ export function devConfigErrors(config = loadWranglerConfig()) {
     if (OTHER_DATABASE_IDS.includes(id)) errors.push(`Refusing database id ${id}. It is not bm-automations-dev.`);
   }
   const vars = dev.vars ?? {};
-  if (vars.DEV_MODE !== "true") errors.push('env.dev DEV_MODE must be "true".');
+  // bm-automations-dev is the live Moments Worker. wrangler deploy replaces plain-text
+  // vars from git, so DEV_MODE must stay "false" or every main push re-enables silent
+  // allowlist skips (no send_log). check:dev fails closed if someone flips it back.
+  if (vars.DEV_MODE !== "false") {
+    errors.push('env.dev DEV_MODE must be "false" (live Worker; deploy overwrites vars from git).');
+  }
   const emails = emailsIn(vars.SEND_ALLOWLIST);
   if (emails.length !== 1 || emails[0] !== SEND_EMAIL) {
     errors.push(`env.dev SEND_ALLOWLIST must be exactly ${SEND_EMAIL}.`);

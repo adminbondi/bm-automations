@@ -18,7 +18,7 @@ Defaults assume product **486** Intro Pass is **7 days**. Change Moment 2/3 by e
 ## Safety
 
 - Seeded and migrated with `enabled = 0`.
-- `DEV_MODE=true` + `SEND_ALLOWLIST` on `bm-automations-dev`.
+- Live `bm-automations-dev` keeps `DEV_MODE=false` in `wrangler.jsonc` / `check:dev` so main deploys do not re-enable allowlist skips.
 - Do **not** enable while LoyalSnap still sends the same Moment to the studio.
 - Do **not** also enable LoyalSnap twin `trial-purchased` (template **7**) when Moment 1 is on — double email.
 - Contact must already exist in Listmonk (sync dual-write). Automations skip with `subscriber_missing` otherwise.

@@ -14,6 +14,8 @@ export type AppDeps = {
   now: () => Date;
   fetchImpl: typeof fetch;
   snapshotClient?: (config: RuntimeConfig, clientId: string) => Promise<ClientSnapshot>;
+  /** Test hook: replace wall-clock sleeps (Listmonk subscriber retry). */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export type Loaded = {

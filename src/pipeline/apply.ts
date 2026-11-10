@@ -33,6 +33,8 @@ export type ApplyOptions = {
   appendReplyStop?: boolean;
   /** When set, actionable send failures post to bm-alerts. */
   alerts?: AlertsConfig | null;
+  /** Test hook: replace wall-clock sleeps used by subscriber retry. */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export async function applyPlans(plans: GatedPlan[], options: ApplyOptions): Promise<void> {
@@ -177,13 +179,16 @@ async function maybeWaitConfiguredDelay(plan: GatedPlan): Promise<void> {
     unit: timingUnitOf(plan.automation),
     amount,
   });
-  await sleep(ms);
+  await sleep(ms, undefined);
 }
 
 type Delivery = "sent" | "blocked" | "deferred";
 
-/** Sync dual-write often finishes 1–5s after the sale webhook hits automations. */
-const SHARED_SYNC_SUBSCRIBER_RETRY_MS = [0, 1500, 3000] as const;
+/**
+ * Shared-sync Listmonk lookup budget: ~3s total, first wait already helps (no zero-first).
+ * Lookups at t≈1s / 2s / 3s after deliverEmail starts. Same-day cron job remains as backup.
+ */
+const SHARED_SYNC_SUBSCRIBER_RETRY_MS = [1000, 1000, 1000] as const;
 
 async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string): Promise<Delivery> {
   const email = plan.email;
@@ -214,7 +219,7 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
         name,
         ...(plan.copy ? {} : { attribs: plan.attribs }),
       })
-      : await findSubscriberWithRetry(options.listmonk, email);
+      : await findSubscriberWithRetry(options.listmonk, email, options.sleep);
   } catch (error) {
     const message = error instanceof Error ? error.message : "listmonk_failed";
     const classified = classifyUpstreamError(message);
@@ -397,21 +402,21 @@ async function recordSendFailure(
 async function findSubscriberWithRetry(
   listmonk: ListmonkClient,
   email: string,
+  sleepFn?: (ms: number) => Promise<void>,
 ): Promise<Awaited<ReturnType<ListmonkClient["findSubscriber"]>>> {
   for (let i = 0; i < SHARED_SYNC_SUBSCRIBER_RETRY_MS.length; i++) {
     const waitMs = SHARED_SYNC_SUBSCRIBER_RETRY_MS[i] ?? 0;
-    if (waitMs > 0) await sleep(waitMs);
+    if (waitMs > 0) await sleep(waitMs, sleepFn);
     const subscriber = await listmonk.findSubscriber(email);
     if (subscriber) {
-      if (i > 0) {
-        log({ event: "subscriber_retry_ok", attempt: i + 1, email });
-      }
+      log({ event: "subscriber_retry_ok", attempt: i + 1, email, waitedMs: waitMs });
       return subscriber;
     }
   }
   return null;
 }
 
-function sleep(ms: number): Promise<void> {
+function sleep(ms: number, sleepFn?: (ms: number) => Promise<void>): Promise<void> {
+  if (sleepFn) return sleepFn(ms);
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

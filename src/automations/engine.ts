@@ -278,7 +278,8 @@ export function evaluateAutomation(automation: Automation, ctx: EvalContext): De
   }
 
   if (ctx.phase === "trigger") {
-    if (!automation.triggerEvents.includes(ctx.eventId) || automation.timingKind !== "immediate") {
+    const triggerNow = automation.timingKind === "immediate" || automation.timingKind === "delay_duration";
+    if (!automation.triggerEvents.includes(ctx.eventId) || !triggerNow) {
       return decide(automation, "skip", "not_this_trigger", warnings, {});
     }
     const filters = filtersPass(automation, ctx);

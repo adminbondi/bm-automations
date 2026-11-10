@@ -1,4 +1,5 @@
-import { TIMING_KINDS, type Automation, type AutomationFilters, type AutomationSkipRules, type Channel, type TimingKind } from "../automations/types";
+import { isTimingOffsetUnit, validateShortDelay } from "../automations/delay-units";
+import { TIMING_KINDS, type Automation, type AutomationFilters, type AutomationSkipRules, type Channel, type TimingKind, type TimingOffsetUnit } from "../automations/types";
 
 const KEY = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -23,6 +24,7 @@ export function automationFromBody(body: unknown, id: number): Automation | stri
     scheduleOnEvents: asStringList(body.scheduleOnEvents) ?? [],
     timingKind,
     timingOffsetDays: timingKind === "immediate" ? null : asNullableNumber(body.timingOffsetDays),
+    timingOffsetUnit: asTimingOffsetUnit(body.timingOffsetUnit),
     filters: asRecord(body.filters) ? (body.filters as AutomationFilters) : {},
     skipRules: asRecord(body.skipRules) ? (body.skipRules as AutomationSkipRules) : {},
     enabled: body.enabled === true,
@@ -68,6 +70,7 @@ export function mergeAutomation(current: Automation, body: unknown): Automation 
     next.timingKind = timing;
   }
   if ("timingOffsetDays" in body) next.timingOffsetDays = asNullableNumber(body.timingOffsetDays);
+  if ("timingOffsetUnit" in body) next.timingOffsetUnit = asTimingOffsetUnit(body.timingOffsetUnit);
   if ("filters" in body) {
     if (!asRecord(body.filters)) return "invalid_filters";
     next.filters = body.filters as AutomationFilters;
@@ -82,7 +85,10 @@ export function mergeAutomation(current: Automation, body: unknown): Automation 
   }
   if ("extraRecipient" in body) next.extraRecipient = asNullableString(body.extraRecipient);
   if ("notes" in body) next.notes = asNullableString(body.notes);
-  if (next.timingKind === "immediate") next.timingOffsetDays = null;
+  if (next.timingKind === "immediate") {
+    next.timingOffsetDays = null;
+    next.timingOffsetUnit = "days";
+  }
   return validateAutomation(next);
 }
 
@@ -95,11 +101,23 @@ export function validateAutomation(automation: Automation): Automation | string 
   } else if (automation.templateId !== null) {
     return "sms_template_forbidden";
   }
-  if (automation.timingKind !== "immediate") {
-    if (automation.timingOffsetDays === null || !Number.isInteger(automation.timingOffsetDays) || automation.timingOffsetDays < 0) {
-      return "invalid_offset";
-    }
+  const unit = automation.timingOffsetUnit ?? "days";
+  if (automation.timingKind === "immediate") {
+    automation.timingOffsetUnit = "days";
+    return automation;
   }
+  if (automation.timingOffsetDays === null || !Number.isInteger(automation.timingOffsetDays) || automation.timingOffsetDays < 0) {
+    return "invalid_offset";
+  }
+  if (automation.timingKind === "delay_duration") {
+    if (unit === "days") return "invalid_offset";
+    const bad = validateShortDelay(automation.timingOffsetDays, unit);
+    if (bad) return bad;
+    automation.timingOffsetUnit = unit;
+    return automation;
+  }
+  if (unit !== "days") return "invalid_offset";
+  automation.timingOffsetUnit = "days";
   return automation;
 }
 
@@ -109,6 +127,10 @@ function asChannel(value: unknown): Channel | null {
 
 function asTiming(value: unknown): TimingKind | null {
   return TIMING_KINDS.find((kind) => kind === value) ?? null;
+}
+
+function asTimingOffsetUnit(value: unknown): TimingOffsetUnit {
+  return isTimingOffsetUnit(value) ? value : "days";
 }
 
 function asString(value: unknown): string | null {

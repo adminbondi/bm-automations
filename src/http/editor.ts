@@ -1,5 +1,6 @@
+import { isTimingOffsetUnit, validateShortDelay } from "../automations/delay-units";
 import { CLASS_PASS_TOKENS, INTRO_PASS_TOKENS, TWO_WEEK_TOKENS } from "../automations/seed";
-import type { Automation, AutomationFilters } from "../automations/types";
+import type { Automation, AutomationFilters, TimingOffsetUnit } from "../automations/types";
 import { validateAutomation } from "./automation-body";
 
 export type TriggerChoice =
@@ -84,12 +85,24 @@ export type EditorInput = {
   audience: string;
   delay: string;
   delayDays: string;
+  /** milliseconds | seconds | minutes | days — omitted defaults to days. */
+  delayUnit?: string;
   skipBooking: boolean;
   skipMembership: boolean;
   skipSent: boolean;
   skipUnsubscribed: boolean;
   ruleNumber?: string;
 };
+
+const DAY_ONLY_DELAYS = new Set<DelayChoice>([
+  "before-expiry",
+  "after-expiry",
+  "since-last-visit",
+  "birthday",
+  "birthday-month",
+]);
+
+const SHORT_DELAY_ANCHORS = new Set<DelayChoice>(["after-purchase", "after-created", "after-lead"]);
 
 const INTRO_KEY = tokenKey(INTRO_PASS_TOKENS);
 const TWO_WEEK_KEY = tokenKey(TWO_WEEK_TOKENS);
@@ -139,11 +152,22 @@ export function derivedDelay(automation: Automation): DelayChoice {
   if (automation.timingKind === "days_since_last_visit") return "since-last-visit";
   if (automation.timingKind === "birthday_day") return "birthday";
   if (automation.timingKind === "birthday_month_start") return "birthday-month";
+  if (automation.timingKind === "delay_duration") {
+    if (automation.triggerEvents.includes("lead.created")) return "after-lead";
+    if (automation.triggerEvents.includes("client.created") && !automation.triggerEvents.includes("clientSale.created")) {
+      return "after-created";
+    }
+    return "after-purchase";
+  }
   if (automation.scheduleOnEvents.includes("lead.created")) return "after-lead";
   if (automation.scheduleOnEvents.includes("client.created") && !automation.scheduleOnEvents.includes("clientSale.created")) {
     return "after-created";
   }
   return "after-purchase";
+}
+
+export function derivedDelayUnit(automation: Automation): TimingOffsetUnit {
+  return automation.timingOffsetUnit ?? "days";
 }
 
 export function blankAutomation(id: number, key: string, name: string): Automation {
@@ -158,6 +182,7 @@ export function blankAutomation(id: number, key: string, name: string): Automati
     scheduleOnEvents: [],
     timingKind: "immediate",
     timingOffsetDays: null,
+    timingOffsetUnit: "days",
     filters: {},
     skipRules: { skipIfAlreadySent: true },
     enabled: false,
@@ -196,17 +221,28 @@ export function applyEditor(current: Automation, input: EditorInput, enabled: bo
   }
   if (isRuleTrigger(derivedTrigger(current))) clearRuleExtras(next);
   const days = Number(input.delayDays);
+  const unit = parseDelayUnit(input.delayUnit);
   const offsetChanged = input.delay !== "immediate" && current.timingOffsetDays !== days;
+  const unitChanged = input.delay !== "immediate" && derivedDelayUnit(current) !== unit;
   if (input.delay === "immediate") {
     if (derivedTrigger(current) !== input.trigger || current.timingKind !== "immediate") {
       applyTrigger(next, input.trigger === "daily" ? "client" : input.trigger);
       next.timingKind = "immediate";
       next.timingOffsetDays = null;
+      next.timingOffsetUnit = "days";
       next.scheduleOnEvents = [];
     }
-  } else if (derivedDelay(current) !== input.delay || offsetChanged || derivedTrigger(current) !== "daily") {
-    const applied = applyDelay(next, input.delay, days);
-    if (applied) return applied;
+  } else {
+    const needsDelay =
+      derivedDelay(current) !== input.delay ||
+      offsetChanged ||
+      unitChanged ||
+      derivedTrigger(current) !== "daily" ||
+      (current.timingKind === "delay_duration") !== (unit !== "days");
+    if (needsDelay) {
+      const applied = applyDelay(next, input.delay, days, unit);
+      if (applied) return applied;
+    }
   }
   return validateAutomation(next);
 }
@@ -222,6 +258,7 @@ export function editorInput(form: FormData): EditorInput {
     audience: String(form.get("audience") ?? ""),
     delay: String(form.get("delay") ?? ""),
     delayDays: String(form.get("delayDays") ?? ""),
+    delayUnit: String(form.get("delayUnit") ?? "days"),
     skipBooking: form.get("skipBooking") === "on",
     skipMembership: form.get("skipMembership") === "on",
     skipSent: form.get("skipSent") === "on",
@@ -273,11 +310,13 @@ function applyRule(automation: Automation, trigger: RuleTrigger, raw: string): s
       automation.scheduleOnEvents = [];
       automation.timingKind = "immediate";
       automation.timingOffsetDays = null;
+      automation.timingOffsetUnit = "days";
     } else {
       automation.triggerEvents = ["cron"];
       automation.scheduleOnEvents = ["lead.created"];
       automation.timingKind = "delay_days";
       automation.timingOffsetDays = number;
+      automation.timingOffsetUnit = "days";
     }
     return null;
   }
@@ -335,9 +374,32 @@ function applyAudience(automation: Automation, audience: string): void {
   automation.filters = filters;
 }
 
-function applyDelay(automation: Automation, delay: string, days: number): string | null {
+function parseDelayUnit(raw: string | undefined): TimingOffsetUnit {
+  return isTimingOffsetUnit(raw) ? raw : "days";
+}
+
+function applyDelay(automation: Automation, delay: string, days: number, unit: TimingOffsetUnit): string | null {
   if (!Number.isInteger(days) || days < 0) return "invalid_offset";
+  const choice = delay as DelayChoice;
+  if (DAY_ONLY_DELAYS.has(choice) && unit !== "days") return "invalid_offset";
+  if (unit !== "days" && !SHORT_DELAY_ANCHORS.has(choice)) return "invalid_offset";
+  if (unit !== "days") {
+    const bad = validateShortDelay(days, unit);
+    if (bad) return bad;
+  }
+
   automation.timingOffsetDays = days;
+  automation.timingOffsetUnit = unit === "days" ? "days" : unit;
+
+  if (unit !== "days") {
+    automation.timingKind = "delay_duration";
+    automation.scheduleOnEvents = [];
+    if (delay === "after-created") automation.triggerEvents = ["client.created"];
+    else if (delay === "after-lead") automation.triggerEvents = ["lead.created"];
+    else automation.triggerEvents = ["clientSale.created"];
+    return null;
+  }
+
   automation.triggerEvents = ["cron"];
   if (delay === "after-created") {
     automation.timingKind = "delay_days";
@@ -351,10 +413,12 @@ function applyDelay(automation: Automation, delay: string, days: number): string
   } else if (delay === "birthday") {
     automation.timingKind = "birthday_day";
     automation.timingOffsetDays = 0;
+    automation.timingOffsetUnit = "days";
     automation.scheduleOnEvents = ["client.created"];
   } else if (delay === "birthday-month") {
     automation.timingKind = "birthday_month_start";
     automation.timingOffsetDays = 0;
+    automation.timingOffsetUnit = "days";
     automation.scheduleOnEvents = ["client.created"];
   } else if (delay === "before-expiry") {
     automation.timingKind = "days_before_expiry";

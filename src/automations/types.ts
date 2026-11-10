@@ -1,6 +1,7 @@
 export const TIMING_KINDS = [
   "immediate",
   "delay_days",
+  "delay_duration",
   "days_before_expiry",
   "days_after_expiry",
   "days_since_last_visit",
@@ -8,6 +9,9 @@ export const TIMING_KINDS = [
   "birthday_month_start",
 ] as const;
 export type TimingKind = (typeof TIMING_KINDS)[number];
+
+/** Amount unit for Delay. Day anchors keep `days`; sub-day waits use the short units. */
+export type TimingOffsetUnit = "days" | "minutes" | "seconds" | "milliseconds";
 
 export const CHANNELS = ["email", "sms"] as const;
 export type Channel = (typeof CHANNELS)[number];
@@ -66,6 +70,8 @@ export type Automation = {
   scheduleOnEvents: string[];
   timingKind: TimingKind;
   timingOffsetDays: number | null;
+  /** Defaults to `days` when omitted (older rows / seeds). */
+  timingOffsetUnit?: TimingOffsetUnit;
   filters: AutomationFilters;
   skipRules: AutomationSkipRules;
   enabled: boolean;

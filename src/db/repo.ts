@@ -8,7 +8,9 @@ import type {
   ScheduledJob,
   SendLogRow,
   TimingKind,
+  TimingOffsetUnit,
 } from "../automations/types";
+import { isTimingOffsetUnit } from "../automations/delay-units";
 import { SEED_AUTOMATIONS, SEED_CREATED_AT } from "../automations/seed";
 
 export interface Stmt {
@@ -34,6 +36,7 @@ type AutomationRow = {
   schedule_on_events_json: string;
   timing_kind: TimingKind;
   timing_offset_days: number | null;
+  timing_offset_unit?: string | null;
   filters_json: string;
   skip_rules_json: string;
   enabled: number;
@@ -58,6 +61,10 @@ function parseJson<T>(value: string, fallback: T): T {
   }
 }
 
+function asTimingOffsetUnit(value: string | null | undefined): TimingOffsetUnit {
+  return isTimingOffsetUnit(value) ? value : "days";
+}
+
 export function rowToAutomation(row: AutomationRow): Automation {
   const channel: Channel = row.channel === "sms" ? "sms" : "email";
   return {
@@ -71,6 +78,7 @@ export function rowToAutomation(row: AutomationRow): Automation {
     scheduleOnEvents: parseJson<string[]>(row.schedule_on_events_json, []),
     timingKind: row.timing_kind,
     timingOffsetDays: row.timing_offset_days,
+    timingOffsetUnit: asTimingOffsetUnit(row.timing_offset_unit),
     filters: parseJson<AutomationFilters>(row.filters_json, {}),
     skipRules: parseJson<AutomationSkipRules>(row.skip_rules_json, {}),
     enabled: row.enabled === 1,
@@ -189,7 +197,7 @@ export class Repo {
       .prepare(
         `UPDATE automations SET
           key = ?, name = ?, channel = ?, template_id = ?, message_text = ?, trigger_events_json = ?,
-          schedule_on_events_json = ?, timing_kind = ?, timing_offset_days = ?, filters_json = ?,
+          schedule_on_events_json = ?, timing_kind = ?, timing_offset_days = ?, timing_offset_unit = ?, filters_json = ?,
           skip_rules_json = ?, enabled = ?, extra_recipient = ?, notes = ?, updated_at = ?
         WHERE id = ?`,
       )
@@ -203,6 +211,7 @@ export class Repo {
         JSON.stringify(next.scheduleOnEvents),
         next.timingKind,
         next.timingOffsetDays,
+        next.timingOffsetUnit ?? "days",
         JSON.stringify(next.filters),
         JSON.stringify(next.skipRules),
         next.enabled ? 1 : 0,

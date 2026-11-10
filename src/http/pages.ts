@@ -1,7 +1,8 @@
 import { stepPreview, stepTimingLabel } from "../automations/labels";
 import { LOYALSNAP_LIVE_KEYS } from "../automations/seed";
 import type { Automation, FunnelLane, SendLogRow } from "../automations/types";
-import { derivedAudience, derivedDelay, derivedTrigger, RULE_FIELDS, type AudienceChoice, type DelayChoice, type RuleTrigger, type TriggerChoice } from "./editor";
+import type { TimingOffsetUnit } from "../automations/types";
+import { derivedAudience, derivedDelay, derivedDelayUnit, derivedTrigger, RULE_FIELDS, type AudienceChoice, type DelayChoice, type RuleTrigger, type TriggerChoice } from "./editor";
 import { TEMPLATE_SUBJECTS } from "../automations/subjects";
 import { escapeHtml } from "./layout";
 import type { PublicSettings } from "../settings/service";
@@ -78,6 +79,7 @@ export function editPage(automation: Automation | null, settings: PublicSettings
   const audience = automation ? derivedAudience(automation) : "all";
   const delay = automation ? derivedDelay(automation) : "immediate";
   const days = automation?.timingOffsetDays ?? (delay === "immediate" ? "" : 0);
+  const delayUnit = automation ? derivedDelayUnit(automation) : "days";
   const templateId = automation?.channel === "email" ? automation.templateId ?? null : 5;
   const message = automation?.messageText ?? "";
   const subject = templateId ? TEMPLATE_SUBJECTS[templateId] ?? "" : "";
@@ -117,7 +119,7 @@ export function editPage(automation: Automation | null, settings: PublicSettings
 <label>Trigger<select name="trigger" id="trigger">${triggerOptions(trigger)}</select></label>
 ${ruleBox(automation, trigger)}
 <label>Who it's for<select name="audience">${audienceOptions(audience)}</select></label><br>
-<div id="delay-box"${isRule(trigger) ? " hidden" : ""}><label>Delay<div style="display:flex;gap:8px"><input name="delayDays" type="number" min="0" step="1" value="${days}" style="width:80px"><select name="delay">${delayOptions(delay)}</select></div></label></div><br>
+<div id="delay-box"${isRule(trigger) ? " hidden" : ""}><label>Delay<p class="small muted" style="margin:4px 0 8px">Pick an amount and unit. Day-based anchors (expiry, visit, birthday) stay in <b>days</b>. Short waits (ms / seconds / minutes) run on the trigger event — Listmonk subscriber races use a separate code retry, not this Delay.</p><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><input id="delay-amount" name="delayDays" type="number" min="0" step="1" value="${days}" style="width:80px"${delay === "immediate" ? " disabled" : ""}><select id="delay-unit" name="delayUnit"${delay === "immediate" ? " disabled" : ""}>${delayUnitOptions(delayUnit)}</select><select id="delay-anchor" name="delay">${delayOptions(delay)}</select></div></label></div><br>
 <label>Stop rules (skip if any is true)</label>
 ${check("skipBooking", "Has booked or taken a class", Boolean(automation?.skipRules.skipIfHasBooking))}
 ${check("skipMembership", "Bought a membership", Boolean(automation?.skipRules.skipIfMembership))}
@@ -152,7 +154,14 @@ const ruleMeta=${JSON.stringify(RULE_FIELDS)};
 const triggerSel=document.getElementById("trigger");
 function syncRule(){const box=document.getElementById("rule-box");const delay=document.getElementById("delay-box");const numLabel=document.getElementById("rule-number-label");const numName=document.getElementById("rule-number-name");const num=document.getElementById("rule-number");const dateLabel=document.getElementById("rule-date-label");const dateName=document.getElementById("rule-date-name");const help=document.getElementById("rule-help");if(!triggerSel||!box||!num||!numLabel||!dateLabel||!help||!numName||!dateName)return;const meta=ruleMeta[triggerSel.value];box.hidden=!meta;if(delay)delay.hidden=Boolean(meta);if(!meta){num.disabled=true;return}const date=meta.input==="date";numLabel.hidden=date;num.disabled=date;dateLabel.hidden=!date;numName.textContent=meta.label;dateName.textContent=meta.label;help.textContent=meta.help}
 triggerSel?.addEventListener("change",syncRule);
-syncRule();`;
+syncRule();
+const dayOnly=new Set(["before-expiry","after-expiry","since-last-visit","birthday","birthday-month"]);
+const delayAmount=document.getElementById("delay-amount");
+const delayUnit=document.getElementById("delay-unit");
+const delayAnchor=document.getElementById("delay-anchor");
+function syncDelay(){if(!delayAmount||!delayUnit||!delayAnchor)return;const immediate=delayAnchor.value==="immediate";const forceDays=dayOnly.has(delayAnchor.value);delayAmount.disabled=immediate;delayUnit.disabled=immediate;if(immediate)return;if(forceDays){delayUnit.value="days";for(const opt of delayUnit.options)opt.disabled=opt.value!=="days"}else{for(const opt of delayUnit.options)opt.disabled=false}}
+delayAnchor?.addEventListener("change",syncDelay);
+syncDelay();`;
 }
 
 export function logPage(rows: LogView[] | null, automations: Automation[], query: URLSearchParams): string {
@@ -333,15 +342,25 @@ function audienceOptions(current: AudienceChoice): string {
 
 function delayOptions(current: DelayChoice): string {
   const options: [DelayChoice, string][] = [
-    ["after-purchase", "days after Intro Pass purchase"],
-    ["after-created", "days after client created"],
-    ["before-expiry", "days before pass expiry"],
-    ["after-expiry", "days after pass expiry"],
-    ["after-lead", "days after an external lead"],
-    ["since-last-visit", "days since last visit"],
+    ["after-purchase", "after Intro Pass purchase"],
+    ["after-created", "after client created"],
+    ["before-expiry", "before pass expiry (days only)"],
+    ["after-expiry", "after pass expiry (days only)"],
+    ["after-lead", "after an external lead"],
+    ["since-last-visit", "since last visit (days only)"],
     ["birthday", "on their birthday"],
     ["birthday-month", "on the 1st of their birthday month"],
     ["immediate", "immediately"],
+  ];
+  return options.map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`).join("");
+}
+
+function delayUnitOptions(current: TimingOffsetUnit): string {
+  const options: [TimingOffsetUnit, string][] = [
+    ["milliseconds", "milliseconds"],
+    ["seconds", "seconds"],
+    ["minutes", "minutes"],
+    ["days", "days"],
   ];
   return options.map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${label}</option>`).join("");
 }
@@ -364,7 +383,7 @@ function errorText(code: string): string {
   const known: Record<string, string> = {
     template_required: "Choose a listmonk template for an email.",
     message_required: "Write the text message.",
-    invalid_offset: "Delay days must be a whole number, 0 or more.",
+    invalid_offset: "Delay must be a whole number 0 or more. Short units (ms / seconds / minutes) max out at 15 minutes, and expiry / visit / birthday anchors stay in days.",
     invalid_name: "Name is required.",
     invalid_key: "That name cannot be turned into a key.",
     not_allowlisted: "That address is not on the send allowlist.",

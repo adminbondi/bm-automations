@@ -1,3 +1,4 @@
+import { delayOffsetMs, timingUnitOf } from "../automations/delay-units";
 import { unsubscribeUrl, withUnsubscribe } from "../automations/gate";
 import type { JobPayload } from "../automations/types";
 import type { Repo } from "../db/repo";
@@ -102,6 +103,7 @@ async function applyPlan(plan: GatedPlan, options: ApplyOptions): Promise<void> 
   }
 
   if ((plan.listmonkCall || plan.twilioCall) && plan.dedupeKey) {
+    await maybeWaitConfiguredDelay(plan);
     const result = plan.twilioCall ? await deliverSms(plan, options, plan.dedupeKey) : await deliverEmail(plan, options, plan.dedupeKey);
     if (options.jobId) {
       if (result === "deferred") {
@@ -150,7 +152,25 @@ function movesDueDate(kind: GatedPlan["automation"]["timingKind"]): boolean {
 }
 
 function keepsJob(plan: GatedPlan): boolean {
-  return plan.automation.timingKind !== "immediate" || plan.automation.skipRules.exactVisits != null;
+  const fireNow = plan.automation.timingKind === "immediate" || plan.automation.timingKind === "delay_duration";
+  return !fireNow || plan.automation.skipRules.exactVisits != null;
+}
+
+/** Honours Delay UI short units (ms / seconds / minutes) before the first send attempt. */
+async function maybeWaitConfiguredDelay(plan: GatedPlan): Promise<void> {
+  if (plan.automation.timingKind !== "delay_duration") return;
+  const amount = plan.automation.timingOffsetDays ?? 0;
+  const ms = delayOffsetMs(amount, timingUnitOf(plan.automation));
+  if (!ms || ms <= 0) return;
+  log({
+    event: "delay_wait",
+    automationId: plan.automation.id,
+    automationKey: plan.automation.key,
+    waitMs: ms,
+    unit: timingUnitOf(plan.automation),
+    amount,
+  });
+  await sleep(ms);
 }
 
 type Delivery = "sent" | "blocked" | "deferred";

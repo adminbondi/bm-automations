@@ -62,6 +62,8 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 
 `HANDOFF_SECRET` is optional. Leave it unset to keep this Google login. Set the same value as bm-home, on the dev Worker `bm-automations-dev`, when staff should sign in at home. `HOME_ORIGIN` defaults to `https://home.balancemoves.com.au`. A missing session on a staff page or `/admin/*` then redirects to `{HOME_ORIGIN}/login?return=automations`. `GET /auth/handoff?code=` checks an HMAC-SHA256 code (`base64url(JSON).base64url(sig)`, `app` `automations`, `exp` in unix milliseconds) and sets `bm_automations_session`. The allowlist is unchanged. `/health`, `/webhooks/*`, and the cron do not redirect. The sign-in page does not offer Google while the secret is set.
 
+`AGENT_READ_TOKEN` is an optional Worker secret for support bots. When set, `Authorization: Bearer <token>` may call **only** `GET /admin/send-log` (constant-time compare). Every other `/admin` route and any non-GET with only that token is rejected the same as an unauthenticated request. If the secret is unset or empty, the bearer path is off. Staff cookie auth is unchanged.
+
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/login` | Redirect to Google, or to home when `HANDOFF_SECRET` is set |
@@ -72,7 +74,7 @@ Google OAuth uses scope `openid email`, an HMAC-signed `bm_automations_session` 
 | POST | `/admin/automations` | Create a row (disabled unless `enabled: true`) |
 | GET, PATCH | `/admin/automations/:id` | Read or update |
 | POST | `/admin/automations/:id/toggle` | Flip `enabled` |
-| GET | `/admin/send-log` | Recent sends (`limit`, `automationId`) |
+| GET | `/admin/send-log` | Recent sends. Query: `limit`, `automationId`, `email`, `clientId`, `since`, `until`, `status`. Rows: `id`, `dedupeKey`, `automationId`, `clientId`, `channel`, `templateId`, `email`, `phone`, `status`, `detail`, `createdAt` |
 | GET, PATCH | `/admin/settings` | Connection settings. Secrets are write-only |
 | POST | `/admin/settings/test/listmonk` | Authenticated listmonk check |
 | POST | `/admin/settings/test/twilio` | Test SMS to an allowlisted number |
@@ -119,9 +121,9 @@ Emails use listmonk templates 5–13 (LoyalSnap twins) plus 14–16 (Black Frida
 
 ## Deploy
 
-Dev deploy is `docs/dev-deploy.md`. `./scripts/deploy.sh dev` runs the test suite, the allowlist check, and `wrangler deploy --env dev`, then fails if any automation is enabled on `bm-automations-dev`. Any other argument is refused. The script does not publish the top-level Worker `bm-automations`.
+Dev deploy is `docs/dev-deploy.md`. `./scripts/deploy.sh dev` runs the test suite, the allowlist check, D1 migrations for `bm-automations-dev`, and `wrangler deploy --env dev`. It does not change any automation `enabled` flag. Any other argument is refused. The script does not publish the top-level Worker `bm-automations`.
 
-The dev D1 database already exists: `bm-automations-dev`, id `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`. Do not create another one. A push to `main` runs `.github/workflows/deploy-dev.yml`. That workflow runs the tests, typecheck, and allowlist check first, then `wrangler deploy --env dev` only if they pass, with the automations-off check before and after the deploy. It uses the GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. `.github/workflows/ci.yml` runs the same checks and does not deploy.
+The dev D1 database already exists: `bm-automations-dev`, id `6b95adf8-010b-4608-b2d2-f3172bd1fb8b`. Do not create another one. A push to `main` runs `.github/workflows/deploy-dev.yml`. That workflow runs the tests, typecheck, and allowlist check first, applies D1 migrations, then `wrangler deploy --env dev` only if they pass. Deploy never forces automations off. It uses the GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. `.github/workflows/ci.yml` runs the same checks and does not deploy.
 
 `LEAD_WEBHOOK_SECRET` is optional. Without it, `POST /webhooks/lead` returns 401. `ADMIN_EMAILS` on `env.dev` is `admin@balancemoves.com.au`. Google's redirect URI for that Worker is `https://bm-automations-dev.plain-bush-daad.workers.dev/auth/google/callback`.
 

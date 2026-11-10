@@ -20,6 +20,15 @@ export function isAdminEmail(email: string, allowlist: string[]): boolean {
   return normalized.length > 0 && allowlist.includes(normalized);
 }
 
+/** Read-only Bearer for GET /admin/send-log. Empty/unset secret fails closed (path off). */
+export async function authorizeAgentReadToken(secret: string, authorization: string | null): Promise<boolean> {
+  if (!secret) return false;
+  if (!authorization || !authorization.startsWith("Bearer ")) return false;
+  const token = authorization.slice("Bearer ".length);
+  if (!token) return false;
+  return timingSafeEqualString(token, secret);
+}
+
 export function googleAuthUrl(clientId: string, redirectUri: string, state: string): string {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", clientId);

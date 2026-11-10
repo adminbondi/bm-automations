@@ -117,6 +117,7 @@ async function runBody(raw: string, loaded: Loaded, deps: AppDeps, readOnly: boo
         payload: eventPayload(event),
         appendReplyStop: loaded.connections.appendReplyStop,
         alerts: loaded.alerts,
+        sleep: deps.sleep,
       });
       await loaded.repo.recordMessage(event.messageId, event.eventId);
     }

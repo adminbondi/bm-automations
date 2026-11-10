@@ -26,6 +26,8 @@ describe("contact write mode", () => {
     expect(readFileSync("SYNC_CONTRACT.md", "utf8")).toBe(doc);
     expect(doc).toContain("shared_sync");
     expect(doc).toContain("subscriber_missing");
+    expect(doc).toContain("about 3s total");
+    expect(doc).toContain("no immediate zero-first");
     expect(doc).toContain("passEndDate");
     expect(doc).toContain("in parallel");
     expect(doc).toContain("own retry queue");
@@ -136,6 +138,7 @@ async function sendSale(options: {
   let lookups = 0;
   const app = createApp({
     now: () => new Date("2026-10-11T00:00:00Z"),
+    sleep: async () => {},
     snapshotClient: async () => emptySnapshot({
       profile: { email, phone: null, firstName: "Ada", lastName: "Lovelace", createdAt: "2026-08-01T00:00:00Z", waiverSigned: false },
       services: [{ name: "2 Week Intro Pass", expirationSydney: "2026-10-14", current: true, remaining: 2 }],

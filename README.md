@@ -6,7 +6,7 @@ Mindbody webhooks and the Sydney morning cron decide a send from the event paylo
 
 ## Safety
 
-- `DEV_MODE` defaults to `true`. A send whose address is not on `SEND_ALLOWLIST` (email) or `SMS_ALLOWLIST` / phone entries in `SEND_ALLOWLIST` is logged and skipped.
+- Live `bm-automations-dev` keeps `DEV_MODE=false` in git (`check:dev` enforces it). When `DEV_MODE` is `true`, a send whose address is not on `SEND_ALLOWLIST` (email) or `SMS_ALLOWLIST` / phone entries in `SEND_ALLOWLIST` is logged and skipped — often with **no** `send_log` row.
 - Every seeded automation has `enabled = 0`. The worker does not send until that row is turned on.
 - `DRY_RUN=true`, `X-Dry-Run: true` on a signed webhook, and `POST /admin/dry-run` return the plan and do not call listmonk or Twilio. The header and the admin preview also skip job and message-id writes.
 - SMS quiet hours default to 20:00–09:00 Australia/Sydney (end exclusive, so 09:00 is allowed). The default action holds the text and sends after quiet hours. Settings can switch that to skip. The test-text endpoint always requires an allowlisted number, including when dev mode is off.

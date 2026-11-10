@@ -88,7 +88,9 @@
         }
       ],
       "vars": {
-        "DEV_MODE": "true",
+        // Live Moments Worker (bm-automations-dev). Deploy overwrites plain-text vars from
+        // this list — keep DEV_MODE false so a main push cannot re-enable allowlist skips.
+        "DEV_MODE": "false",
         "DRY_RUN": "false",
         "SEND_ALLOWLIST": "bondi@balancemoves.com.au",
         "SMS_ALLOWLIST": "",

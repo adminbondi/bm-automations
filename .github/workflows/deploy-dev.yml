@@ -3,6 +3,8 @@
 # GitHub Actions skips the remaining steps when one fails, so a failed
 # check does not run `wrangler deploy --env dev`.
 # Migrations apply before deploy; automation `enabled` flags are never changed.
+# Plain-text vars come from wrangler.jsonc env.dev (DEV_MODE must stay false —
+# check:dev refuses true so a main push cannot re-enable silent allowlist skips).
 # See docs/dev-deploy.md. `.github/workflows/ci.yml` does not deploy.
 name: deploy-dev
 

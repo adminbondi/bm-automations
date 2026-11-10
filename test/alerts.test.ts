@@ -40,7 +40,7 @@ describe("alerts client", () => {
       detail: "after_retries",
     });
     expect(fetchImpl).toHaveBeenCalledOnce();
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://bm-alerts.example/alerts");
     expect(init.headers).toMatchObject({ Authorization: "Bearer secret" });
     expect(JSON.parse(String(init.body))).toEqual({

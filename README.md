@@ -182,7 +182,7 @@ Listmonk sends `Authorization: token <user>:<token>`. Transactional templates 5â
 - Exact-visit emails and texts (4, 8, 11) stay pending while the count is still short, so the morning cron can finish them. Once a send was due and then blocked, a later count above the target can still send.
 - Late and early cancellations are excluded from visit counts.
 - Dev-mode and quiet-hour skips leave the job pending and remember that the window already matched.
-- Global suppression checks D1 `suppressed` and, when listmonk credentials exist, a blocklisted subscriber or the suppressed list id.
+- Hard suppression checks D1 `suppressed` only. Listmonk `blocklisted` / suppressed-list membership is marketing opt-out from sync; transactional Moment sends re-enable the subscriber before `/api/tx`.
 - Unsubscribe URL is passed in transactional data. The templates themselves are not edited.
 - Other Mindbody site ids are ignored.
 - Visit history is capped at 500 rows, 200 per page.

@@ -27,6 +27,7 @@ export type Subscriber = {
   id: number;
   uuid: string | null;
   email: string;
+  name: string;
   status: string;
   listIds: number[];
   attribs: Record<string, string>;
@@ -133,6 +134,41 @@ export class ListmonkClient {
     return subscriber.listIds.includes(Number(this.connection.suppressedListId));
   }
 
+  /**
+   * Re-enable a marketing-suppressed subscriber so Listmonk /api/tx can send.
+   * Sync may set `blocklisted` from Mindbody SendPromotionalEmails=false (campaigns).
+   * Transactional Moments still need an enabled subscriber; hard legal blocks belong in D1 `suppressed`.
+   */
+  async enableForTransactional(subscriber: Subscriber): Promise<Subscriber> {
+    if (!this.isSuppressed(subscriber)) return subscriber;
+    const suppressedId = Number(this.connection.suppressedListId);
+    const withoutSuppressed = Number.isFinite(suppressedId) && suppressedId > 0
+      ? subscriber.listIds.filter((id) => id !== suppressedId)
+      : subscriber.listIds;
+    const listId = Number(this.connection.listId);
+    const lists = withoutSuppressed.length > 0
+      ? withoutSuppressed
+      : Number.isFinite(listId) && listId > 0
+        ? [listId]
+        : [];
+    const name = subscriber.name.trim()
+      || [subscriber.attribs.first_name, subscriber.attribs.last_name].filter(Boolean).join(" ").trim()
+      || subscriber.email;
+    const response = await this.fetchImpl(`${this.connection.baseUrl}/api/subscribers/${subscriber.id}`, {
+      method: "PUT",
+      headers: this.headers(),
+      body: JSON.stringify({
+        email: subscriber.email,
+        name,
+        status: "enabled",
+        lists,
+        attribs: subscriber.attribs,
+      }),
+    });
+    if (!response.ok) throw new Error(`listmonk_enable_${response.status}`);
+    return { ...subscriber, name, status: "enabled", listIds: lists };
+  }
+
   async sendTx(input: { email: string; templateId: number; data: Record<string, unknown> }): Promise<void> {
     const payload: Record<string, unknown> = {
       subscriber_email: input.email,
@@ -190,6 +226,7 @@ function mapSubscriber(value: unknown): Subscriber {
     id?: number;
     uuid?: string;
     email?: string;
+    name?: string;
     status?: string;
     lists?: { id?: number }[];
     attribs?: unknown;
@@ -198,6 +235,7 @@ function mapSubscriber(value: unknown): Subscriber {
     id: row.id ?? 0,
     uuid: row.uuid ?? null,
     email: row.email ?? "",
+    name: row.name ?? "",
     status: row.status ?? "",
     listIds: (row.lists ?? []).map((list) => list.id).filter((id): id is number => typeof id === "number"),
     attribs: stringAttribs(row.attribs),

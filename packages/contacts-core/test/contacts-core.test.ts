@@ -225,6 +225,54 @@ describe("ListmonkClient", () => {
     expect(JSON.parse(post?.body ?? "{}").status).toBe("enabled");
   });
 
+  it("re-enables a blocklisted subscriber for transactional send", async () => {
+    const calls: { method: string; url: string; body: string }[] = [];
+    const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      calls.push({ method, url, body: typeof init?.body === "string" ? init.body : "" });
+      return json({ data: { id: 9, email: "ada@example.com", name: "Ada", status: "enabled", lists: [{ id: 3 }] } });
+    };
+    const client = new ListmonkClient(connection, fetchImpl);
+    const enabled = await client.enableForTransactional({
+      id: 9,
+      uuid: "u",
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+      status: "blocklisted",
+      listIds: [3],
+      attribs: { first_name: "Ada", email_opt_out: "true" },
+    });
+    expect(enabled.status).toBe("enabled");
+    const put = calls.find((call) => call.method === "PUT");
+    expect(put?.url).toContain("/api/subscribers/9");
+    expect(JSON.parse(put?.body ?? "{}")).toMatchObject({
+      email: "ada@example.com",
+      name: "Ada Lovelace",
+      status: "enabled",
+      lists: [3],
+    });
+  });
+
+  it("leaves an already-enabled subscriber unchanged for transactional send", async () => {
+    const calls: { method: string }[] = [];
+    const client = new ListmonkClient(connection, async (_input, init) => {
+      calls.push({ method: init?.method ?? "GET" });
+      return json({});
+    });
+    const same = await client.enableForTransactional({
+      id: 2,
+      uuid: "u",
+      email: "ada@example.com",
+      name: "Ada",
+      status: "enabled",
+      listIds: [3],
+      attribs: {},
+    });
+    expect(same.status).toBe("enabled");
+    expect(calls).toHaveLength(0);
+  });
+
   it("refuses a contact with no email", async () => {
     const client = new ListmonkClient(connection, async () => json({}));
     await expect(client.upsertContact(mapClient({ FirstName: "Ada" }))).rejects.toThrow("listmonk_email_missing");

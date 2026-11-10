@@ -55,20 +55,33 @@ export async function handleReplaySkipped(
     return { status: 200, body: { ok: true, status: "already_sent", clientId, automationKey, email } };
   }
 
-  const recent = await loaded.repo.listSendLog(20, automation.id);
+  const recent = await loaded.repo.listSendLog(50, automation.id);
   const skipped = recent.find(
-    (row) => row.clientId === clientId && row.status === "skipped_no_subscriber" && row.dedupeKey === key,
+    (row) =>
+      row.clientId === clientId &&
+      row.dedupeKey === key &&
+      (row.status === "skipped_no_subscriber" || row.status === "skipped_suppressed"),
   );
   if (!skipped) {
-    return { status: 409, body: { error: "no_subscriber_missing_skip", clientId, automationKey } };
+    return { status: 409, body: { error: "no_replayable_skip", clientId, automationKey } };
   }
 
-  const subscriber = await loaded.listmonk.findSubscriber(email);
+  let subscriber = await loaded.listmonk.findSubscriber(email);
   if (!subscriber) {
     return { status: 409, body: { error: "subscriber_still_missing", clientId, email } };
   }
+  let enabledForTx = false;
   if (loaded.listmonk.isSuppressed(subscriber)) {
-    return { status: 409, body: { error: "suppressed", clientId, email } };
+    subscriber = await loaded.listmonk.enableForTransactional(subscriber);
+    enabledForTx = true;
+    log({
+      event: "tx_enable_for_transactional",
+      automationId: automation.id,
+      automationKey: automation.key,
+      clientId,
+      email,
+      replay: true,
+    });
   }
 
   const bag = buildMerge({
@@ -84,9 +97,14 @@ export async function handleReplaySkipped(
   });
   const data = withUnsubscribe(bag.data, unsubscribeUrl(loaded.connections.listmonkBaseUrl, subscriber.uuid));
   if (loaded.config.dryRun) {
-    return { status: 200, body: { ok: true, status: "dry_run", clientId, automationKey, email, templateId: automation.templateId } };
+    return { status: 200, body: { ok: true, status: "dry_run", clientId, automationKey, email, templateId: automation.templateId, enabledForTx } };
   }
   await loaded.listmonk.sendTx({ email, templateId: automation.templateId, data });
+  const detail = skipped.status === "skipped_suppressed"
+    ? "replay_after_skipped_suppressed"
+    : enabledForTx
+      ? "replay_after_subscriber_missing_enabled_for_tx"
+      : "replay_after_subscriber_missing";
   await loaded.repo.recordSend({
     dedupeKey: key,
     automationId: automation.id,
@@ -96,7 +114,7 @@ export async function handleReplaySkipped(
     email,
     phone: null,
     status: "sent",
-    detail: "replay_after_subscriber_missing",
+    detail,
   });
   log({
     event: "sent",
@@ -116,6 +134,8 @@ export async function handleReplaySkipped(
       automationKey,
       email,
       templateId: automation.templateId,
+      enabledForTx,
+      priorSkip: skipped.status,
     },
   };
 }

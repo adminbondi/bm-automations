@@ -276,18 +276,33 @@ async function deliverEmail(plan: GatedPlan, options: ApplyOptions, key: string)
     return "blocked";
   }
   if (options.listmonk.isSuppressed(subscriber)) {
-    await options.repo.recordSend({
-      dedupeKey: key,
+    // Marketing suppress (sync blocklist / suppressed list) must not block transactional Moments.
+    // Hard blocks stay in D1 `suppressed` and are gated earlier via facts.suppressed.
+    log({
+      event: "tx_enable_for_transactional",
       automationId: plan.automation.id,
+      automationKey: plan.automation.key,
       clientId: options.clientId,
-      channel: "email",
-      templateId: plan.templateId,
       email,
-      phone: null,
-      status: "skipped_suppressed",
-      detail: "listmonk blocklist or suppressed list",
+      priorStatus: subscriber.status,
     });
-    return "blocked";
+    try {
+      subscriber = await options.listmonk.enableForTransactional(subscriber);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "listmonk_enable_failed";
+      await options.repo.recordSend({
+        dedupeKey: key,
+        automationId: plan.automation.id,
+        clientId: options.clientId,
+        channel: "email",
+        templateId: plan.templateId,
+        email,
+        phone: null,
+        status: "skipped_suppressed",
+        detail: `listmonk enable_for_transactional failed: ${message}`,
+      });
+      return "blocked";
+    }
   }
   const data = withUnsubscribe(plan.data, unsubscribeUrl(options.listmonkBaseUrl, subscriber.uuid));
   try {

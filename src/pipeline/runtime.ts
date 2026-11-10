@@ -97,13 +97,12 @@ export async function factsFromClient(input: {
 }): Promise<PlanFacts> {
   const { loaded, client, snapshot, event, payload } = input;
   const email = client.email;
+  // Hard legal/manual blocks only (D1). Listmonk blocklisted / suppressed-list is marketing
+  // opt-out from sync (SendPromotionalEmails=false) — Moments are transactional and still send
+  // after enableForTransactional in apply/replay.
   let suppressed = false;
   if (email) {
     suppressed = await loaded.repo.isSuppressed(email);
-    if (!suppressed && loaded.connections.listmonkApiUser && loaded.connections.listmonkApiToken) {
-      const subscriber = await loaded.listmonk.findSubscriber(email);
-      suppressed = loaded.listmonk.isSuppressed(subscriber);
-    }
   }
   const packages = unique([
     ...(event?.packageNames ?? []),

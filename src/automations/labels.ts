@@ -42,9 +42,17 @@ function fallbackTrigger(automation: Automation): string {
 
 function fallbackDelay(automation: Automation): string {
   const days = automation.timingOffsetDays ?? 0;
+  const unit = automation.timingOffsetUnit ?? "days";
   if (automation.timingKind === "immediate") {
     if (automation.skipRules.exactVisits) return `After visit ${automation.skipRules.exactVisits}`;
     return "Immediately";
+  }
+  if (automation.timingKind === "delay_duration") {
+    const label = unit === "milliseconds" ? (days === 1 ? "millisecond" : "milliseconds")
+      : unit === "seconds" ? (days === 1 ? "second" : "seconds")
+        : unit === "minutes" ? (days === 1 ? "minute" : "minutes")
+          : (days === 1 ? "day" : "days");
+    return `Wait ${days} ${label}`;
   }
   if (automation.timingKind === "days_before_expiry") return `Expiry − ${days} day${days === 1 ? "" : "s"}`;
   if (automation.timingKind === "days_after_expiry") return `Expiry + ${days} day${days === 1 ? "" : "s"}`;

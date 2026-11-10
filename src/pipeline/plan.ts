@@ -60,7 +60,12 @@ export type GatedPlan = {
 
 export function matchingPhases(automation: Automation, eventId: string): EvalContext["phase"][] {
   const phases: EvalContext["phase"][] = [];
-  if (automation.triggerEvents.includes(eventId) && automation.timingKind === "immediate") phases.push("trigger");
+  if (
+    automation.triggerEvents.includes(eventId) &&
+    (automation.timingKind === "immediate" || automation.timingKind === "delay_duration")
+  ) {
+    phases.push("trigger");
+  }
   if (automation.scheduleOnEvents.includes(eventId)) phases.push("schedule");
   return phases;
 }

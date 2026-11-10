@@ -50,8 +50,19 @@ describe("contact write mode", () => {
     expect(calls.some((call) => call.url.includes("/api/tx"))).toBe(false);
     expect(calls.some((call) => call.method === "POST" || call.method === "PUT")).toBe(false);
     expect(lines.some((line) => line.includes("\"reason\":\"subscriber_missing\""))).toBe(true);
+    const lookups = calls.filter((call) => call.url.includes("/api/subscribers") && call.method === "GET");
+    expect(lookups.length).toBeGreaterThanOrEqual(3);
     const log = await repo.listSendLog(10, 3);
     expect(log[0]).toMatchObject({ status: "skipped_no_subscriber", detail: "subscriber_missing" });
+    const jobs = await repo.dueJobs("2026-10-11");
+    expect(jobs.some((job) => job.automationId === 3 && job.clientId === "100" && job.reason === "subscriber_missing")).toBe(true);
+  });
+
+  it("retries shared_sync lookup until the subscriber appears", async () => {
+    const { response, calls, lines } = await sendSale({ subscriber: "late" });
+    expect(response.status).toBe(200);
+    expect(calls.some((call) => call.url.includes("/api/tx"))).toBe(true);
+    expect(lines.some((line) => line.includes("\"event\":\"subscriber_retry_ok\""))).toBe(true);
   });
 
   it("sends tx data in self mode and upserts only an allowlisted dev address", async () => {
@@ -87,7 +98,11 @@ describe("contact write mode", () => {
   });
 });
 
-async function sendSale(options: { subscriber?: boolean; extra?: Record<string, string>; email?: string }) {
+async function sendSale(options: {
+  subscriber?: boolean | "late";
+  extra?: Record<string, string>;
+  email?: string;
+}) {
   const calls: { method: string; url: string; body: string }[] = [];
   const lines: string[] = [];
   const original = console.log;
@@ -97,7 +112,7 @@ async function sendSale(options: { subscriber?: boolean; extra?: Record<string, 
   const email = options.email ?? "bondi@balancemoves.com.au";
   const sqlite = openSqlite();
   const env = testEnv(asD1(sqlite), { LISTMONK_API_USER: "api", LISTMONK_API_TOKEN: "token", ...options.extra });
-  const present = options.subscriber !== false;
+  let lookups = 0;
   const app = createApp({
     now: () => new Date("2026-10-11T00:00:00Z"),
     snapshotClient: async () => emptySnapshot({
@@ -110,6 +125,9 @@ async function sendSale(options: { subscriber?: boolean; extra?: Record<string, 
       const method = init?.method ?? "GET";
       calls.push({ method, url, body: String(init?.body ?? "") });
       if (url.includes("/api/subscribers") && method === "GET") {
+        lookups += 1;
+        // factsFromClient does one lookup first; deliverEmail retries after that.
+        const present = options.subscriber === "late" ? lookups >= 3 : options.subscriber !== false;
         const results = present ? [{ id: 9, uuid: "sub", email, status: "enabled", lists: [{ id: 3 }], attribs: { keep: "yes" } }] : [];
         return new Response(JSON.stringify({ data: { results } }), { status: 200 });
       }
@@ -120,7 +138,7 @@ async function sendSale(options: { subscriber?: boolean; extra?: Record<string, 
   await repo.ensureSeed();
   await repo.updateAutomation(3, { enabled: true });
   const body = JSON.stringify({
-    messageId: `m-${email}-${options.extra?.CONTACT_WRITE_MODE ?? "shared"}-${options.extra?.DEV_MODE ?? "dev"}`,
+    messageId: `m-${email}-${options.extra?.CONTACT_WRITE_MODE ?? "shared"}-${options.extra?.DEV_MODE ?? "dev"}-${options.subscriber ?? "yes"}`,
     eventId: "clientSale.created",
     eventData: {
       siteId: 9853,

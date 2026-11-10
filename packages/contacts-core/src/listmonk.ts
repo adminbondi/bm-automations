@@ -7,7 +7,21 @@ export type ListmonkConnection = {
   listId: string;
   suppressedListId: string;
   fromEmail: string;
+  /** Display name for From. Listmonk /api/tx only has from_email, so this is folded into `"Name" <addr>`. */
+  fromName?: string;
 };
+
+/** Build Listmonk `from_email` with an optional RFC 5322 display name. */
+export function formatFromEmail(fromEmail: string, fromName?: string): string {
+  const email = fromEmail.trim();
+  if (!email) return "";
+  // Already a full From line (e.g. Name <addr>) — leave alone.
+  if (email.includes("<") && email.includes(">")) return email;
+  const name = fromName?.trim() ?? "";
+  if (!name) return email;
+  const escaped = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"${escaped}" <${email}>`;
+}
 
 export type Subscriber = {
   id: number;
@@ -126,7 +140,8 @@ export class ListmonkClient {
       subscriber_mode: "default",
       data: input.data,
     };
-    if (this.connection.fromEmail) payload.from_email = this.connection.fromEmail;
+    const from = formatFromEmail(this.connection.fromEmail, this.connection.fromName);
+    if (from) payload.from_email = from;
     const response = await this.fetchImpl(`${this.connection.baseUrl}/api/tx`, {
       method: "POST",
       headers: this.headers(),

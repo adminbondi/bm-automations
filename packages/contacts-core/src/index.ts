@@ -14,7 +14,7 @@ export {
 export type { ContactAttributeKey } from "./contact-attributes";
 export { CONTACT_FIELDS, STUDIO_ADDRESS, STUDIO_PHONE_DISPLAY, STUDIO_PHONE_E164 } from "./fields";
 export type { ContactField } from "./fields";
-export { ListmonkClient } from "./listmonk";
+export { ListmonkClient, formatFromEmail } from "./listmonk";
 export type { ListmonkConnection, Subscriber } from "./listmonk";
 export { CLIENT_ID_BATCH, MindbodyClient } from "./mindbody";
 export type { ClientProfile, ClientSnapshot, MindbodyAuth, MindbodyContract, MindbodyService, MindbodyVisit } from "./mindbody";

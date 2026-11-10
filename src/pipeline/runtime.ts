@@ -39,6 +39,7 @@ export async function loadRuntime(env: Env, deps: AppDeps): Promise<Loaded> {
       listId: connections.listmonkListId,
       suppressedListId: connections.listmonkSuppressedListId,
       fromEmail: connections.defaultFromEmail,
+      fromName: connections.defaultFromName,
     },
     deps.fetchImpl,
   );

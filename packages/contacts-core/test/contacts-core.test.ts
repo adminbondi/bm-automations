@@ -6,6 +6,7 @@ import {
   ListmonkClient,
   MindbodyClient,
   attributesToCopy,
+  formatFromEmail,
   mapClient,
   normalizePhone,
   sharedContactAttribs,
@@ -161,6 +162,21 @@ describe("mapClient", () => {
   });
 });
 
+describe("formatFromEmail", () => {
+  it("folds display name into Listmonk from_email", () => {
+    expect(formatFromEmail("bondi@balancemoves.com.au", "Balance Moves")).toBe(
+      '"Balance Moves" <bondi@balancemoves.com.au>',
+    );
+    expect(formatFromEmail("bondi@balancemoves.com.au", "")).toBe("bondi@balancemoves.com.au");
+    expect(formatFromEmail('"Already" <bondi@balancemoves.com.au>', "Ignored")).toBe(
+      '"Already" <bondi@balancemoves.com.au>',
+    );
+    expect(formatFromEmail("bondi@balancemoves.com.au", 'Thiago "Y" Bondi')).toBe(
+      '"Thiago \\"Y\\" Bondi" <bondi@balancemoves.com.au>',
+    );
+  });
+});
+
 describe("ListmonkClient", () => {
   const connection = {
     baseUrl: "https://campaigns.example",
@@ -228,6 +244,28 @@ describe("ListmonkClient", () => {
     await client.ensureSubscriber({ email: "ada@example.com", name: "Ada", attribs: { first_name: "Ada" } });
     const put = JSON.parse(calls.find((call) => call.method === "PUT")?.body ?? "{}") as { status: string };
     expect(put.status).toBe("enabled");
+  });
+
+  it("sends tx from_email with Settings default from name", async () => {
+    let body = "";
+    const fetchImpl = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = typeof init?.body === "string" ? init.body : "";
+      return json({ data: true });
+    };
+    const client = new ListmonkClient(
+      {
+        ...connection,
+        fromEmail: "bondi@balancemoves.com.au",
+        fromName: "Balance Moves",
+      },
+      fetchImpl,
+    );
+    await client.sendTx({ email: "ada@example.com", templateId: 14, data: { FirstName: "Ada" } });
+    expect(JSON.parse(body)).toMatchObject({
+      subscriber_email: "ada@example.com",
+      template_id: 14,
+      from_email: '"Balance Moves" <bondi@balancemoves.com.au>',
+    });
   });
 });
 

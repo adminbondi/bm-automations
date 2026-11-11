@@ -41,6 +41,7 @@ function settings(): PublicSettings {
     quietAction: "hold",
     smsQuietHours: { start: "20:00", end: "09:00", timeZone: "Australia/Sydney" },
     mindbody: { month: "2026-10", calls: 0, alertAt: 4000, cap: 5000, alert: false, atCap: false, callers: [] },
+    testRecipients: "bondi@balancemoves.com.au",
   };
 }
 
